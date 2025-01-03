@@ -1,0 +1,13 @@
+{
+    "sn" : "07c00d6b-3d4d-44d9-ab3b-da12ddbf6e1d",
+    "model" : "models/yolo11l-kitchen-i8.rknn",
+    "target" : "rk3588",
+    "seconds_per_frame" : 5,
+    "live" : false,
+    "show" : false,
+    "video_source" : "rtsp://admin:ipcam765@192.168.1.139:554/Streaming/Channels/101/",
+    "demo_picture" : "demo/demo-2.jpg",
+    "classes" : ["trash", "litter", ""],
+    "data_send_url" : "https://hajjdrf.transformsai.com/camera/create-clean-indicator/",
+    "X-Secret-Key" : "e5oNH8Yhx8eJml4bSxYw"
+}
