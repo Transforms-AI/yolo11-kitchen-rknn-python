@@ -83,7 +83,7 @@ def live(model: RKNN_instance, config, names):
                 f"Frame {frame_count}: Inferred classes - {inferred_classes}")
             
             # Check if violation
-            violation_classes = {0, 1, 2, 3}  # Classes that indicate a violation, person is not a violation currently, check later
+            violation_classes = {1, 2, 3}  # Classes that indicate a violation, uniform is not a violation, person doesn't exist
             has_violation = any(class_id in violation_classes for class_id in class_ids)
             violation_list = []
             if has_violation:
@@ -147,11 +147,11 @@ if __name__ == '__main__':
     # Load the ONNX model
     model_path = config["model"]
     model = RKNN_instance(model_path, conf_thres=0.2, iou_thres=0.2, classes=(
-        "no uniform", "food uncovered", "no gloves", "no mask", "person"))
+        "uniform", "food uncovered", "no gloves", "no mask", "person"))
 
     # label mapping
     names = {
-        0: "no uniform",
+        0: "uniform",
         1: "food uncovered",
         2: "no gloves",
         3: "no mask",

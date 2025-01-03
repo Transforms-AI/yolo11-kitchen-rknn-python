@@ -219,7 +219,7 @@ class RKNN_instance:
             return image
         for box, score, cl in zip(boxes, scores, classes):
             top, left, right, bottom = [int(_b) for _b in box]
-            print("%s @ (%d %d %d %d) %.3f" % (self.classes[cl], top, left, right, bottom, score))
+            # print("%s @ (%d %d %d %d) %.3f" % (self.classes[cl], top, left, right, bottom, score))
             cv2.rectangle(image, (top, left), (right, bottom), (255, 0, 0), 2)
             cv2.putText(image, '{0} {1:.2f}'.format(self.classes[cl], score),
                         (top, left - 6), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 255), 2)
