@@ -1,0 +1,4 @@
+requests==2.32.3
+--extra-index-url
+https://pypi.org/simple
+rknn-toolkit2==2.3.0
