@@ -1,6 +1,7 @@
 import cv2
 from libraries.datasend import DataUploader
 from libraries.utils import time_to_string
+from libraries.drawing import draw_boxes
 import json
 import time
 import os
@@ -49,7 +50,6 @@ def demo(model: 'RKNN_instance | YOLO', config, names):
             boxes = result.boxes.xyxy.cpu().numpy()
             class_ids = result.boxes.cls.cpu().numpy().astype(int)
             scores = result.boxes.conf.cpu().numpy()
-            names = result.names
 
         else:
             # RKNN inference
@@ -58,10 +58,7 @@ def demo(model: 'RKNN_instance | YOLO', config, names):
             print(f"Inference time (RKNN): {inference_time:.2f} ms")
 
         # Draw detections on the frame
-        if is_yolo:
-            combined_img = draw_yolo_detections(frame.copy(), boxes, class_ids, scores, names)
-        else:
-            combined_img = model.draw_detections(frame.copy(), boxes, class_ids, scores, names)
+        combined_img = draw_boxes(frame.copy(), boxes, class_ids, names)
 
         cv2.imshow("Output", combined_img)
         key = cv2.waitKey(1)
@@ -111,14 +108,17 @@ def live(model: 'RKNN_instance | YOLO', config, names):
         print("Error: Could not open video stream.")
         exit()
 
+    # Initialize counter and timers
     frame_count = 0
-    last_inference_time = time.time()
     last_data_sent_time = time.time()
+    last_heartbeat_time = time.time()
 
     # Initialize DataUploader
-    api_url = config['datadata_send_url']
+    api_url = config['data_send_url']
+    heartbeat_url = config['heartbeat_url']
     headers = {"X-Secret-Key": config["X-Secret-Key"]}
-    data_uploader = DataUploader(api_url, headers)
+    data_uploader = DataUploader(api_url, heartbeat_url, headers)
+    
 
     is_yolo = isinstance(model, YOLO)
 
@@ -131,10 +131,16 @@ def live(model: 'RKNN_instance | YOLO', config, names):
 
         frame_count += 1
         current_time = time.time()
-
+        # Send Heartbeat
+        if current_time - last_heartbeat_time >= config["heartbeat_interval"]:
+            messages = data_uploader.send_heartbeat(
+                config["sn"], config["local_ip"], time_to_string(current_time)
+            )
+            print(f"Heartbeat Response: {str(messages)}")
+            last_heartbeat_time = current_time
+            
         # Perform inference every 'seconds_per_frame' seconds
-        if current_time - last_inference_time >= config["seconds_per_frame"]:
-            last_inference_time = current_time  # Update last inference time
+        if current_time - last_data_sent_time >= config["seconds_per_frame"]:
 
             if is_yolo:
                 # YOLO (Ultralytics) inference
@@ -143,18 +149,17 @@ def live(model: 'RKNN_instance | YOLO', config, names):
                 boxes = result.boxes.xyxy.cpu().numpy()
                 class_ids = result.boxes.cls.cpu().numpy().astype(int)
                 scores = result.boxes.conf.cpu().numpy()
-                names = result.names  # Get names from YOLO results
 
             else:
                 # RKNN inference
                 boxes, class_ids, scores = model.detect(frame)
 
             # Print inferred classes
-            inferred_classes = [names[class_id] for class_id in class_ids]
-            print(f"Frame {frame_count}: Inferred classes - {inferred_classes}")
+            # inferred_classes = [names[class_id] for class_id in class_ids]
+            # print(f"Frame {frame_count}: Inferred classes - {inferred_classes}")
 
             # Check for violation
-            violation_classes = {1, 2, 3}
+            violation_classes = {1, 3, 5, 6, 9, 10}
             has_violation = any(class_id in violation_classes for class_id in class_ids)
             violation_list = []
             if has_violation:
@@ -177,10 +182,7 @@ def live(model: 'RKNN_instance | YOLO', config, names):
             }
 
             # Draw detections on the frame
-            if is_yolo:
-                combined_img = draw_yolo_detections(frame.copy(), boxes, class_ids, scores, names)
-            else:
-                combined_img = model.draw_detections(frame.copy(), boxes, class_ids, scores, names)
+            combined_img = draw_boxes(frame.copy(), boxes, class_ids, names)
 
             # Save the image temporarily
             temp_image_path = "temp_image.jpg"
@@ -196,9 +198,7 @@ def live(model: 'RKNN_instance | YOLO', config, names):
             os.remove(temp_image_path)
 
             # Print messages from data sending
-            for msg in messages:
-                print(msg)
-
+            print(f"Kitchen Datasend Response: {str(messages)}")
             last_data_sent_time = current_time
 
             if config["show"]:

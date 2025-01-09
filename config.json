@@ -3,11 +3,15 @@
     "model" : "models/yolo8s-kitchen.pt",
     "target" : "rk3588",
     "seconds_per_frame" : 5,
-    "live" : false,
-    "show" : true,
-    "video_source" : "rtsp://admin:ipcam765@192.168.1.139:554/Streaming/Channels/101/",
+    "heartbeat_interval" : 5,
+    "live" : true,
+    "show" : false,
+    "always_send_frames" : true,
+    "livestream":true,
+    "video_source" : "rtsp://admin:ipcam765@192.168.1.138:554/Streaming/Channels/101/",
     "local_video_source" : "kitchen-test.mp4",
     "data_send_url" : "https://hajjdrf.transformsai.com/camera/create-clean-indicator/",
     "heartbeat_url": "https://hajjdrf.transformsai.com/camera/create-camera-heartbeat/",
-    "X-Secret-Key" : "e5oNH8Yhx8eJml4bSxYw"
+    "X-Secret-Key" : "e5oNH8Yhx8eJml4bSxYw",
+    "local_ip": "192.168.1.134"
 }
