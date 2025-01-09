@@ -159,15 +159,17 @@ def live(model: 'RKNN_instance | YOLO', config, names):
             # print(f"Frame {frame_count}: Inferred classes - {inferred_classes}")
 
             # Check for violation
+            # Check for violation
             violation_classes = {1, 3, 5, 6, 9, 10}
-            has_violation = any(class_id in violation_classes for class_id in class_ids)
             violation_list = []
-            if has_violation:
-                violation_list = [
-                    names[class_id]
-                    for class_id in class_ids
-                    if class_id in violation_classes
-                ]
+            violation_class_ids = []  # List to store class IDs that are violations
+            violation_boxes = []  # List to store bounding boxes associated with violations
+
+            for i, class_id in enumerate(class_ids):
+                if class_id in violation_classes:
+                    violation_list.append(names[class_id])
+                    violation_class_ids.append(class_id)
+                    violation_boxes.append(boxes[i])
 
             start_time = time_to_string(last_data_sent_time)
             end_time = time_to_string(current_time)
@@ -175,14 +177,14 @@ def live(model: 'RKNN_instance | YOLO', config, names):
             # Prepare data for sending
             data = {
                 "sn": config['sn'],
-                "violation": has_violation,
+                "violation": True if len(violation_list) != 0 else False,
                 "violation_list": violation_list,
                 "start_time": start_time,
                 "end_time": end_time
             }
 
             # Draw detections on the frame
-            combined_img = draw_boxes(frame.copy(), boxes, class_ids, names)
+            combined_img = draw_boxes(frame.copy(), violation_boxes, violation_class_ids, names)
 
             # Save the image temporarily
             temp_image_path = "temp_image.jpg"
