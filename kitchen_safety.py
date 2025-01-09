@@ -2,6 +2,8 @@ import cv2
 from libraries.datasend import DataUploader
 from libraries.utils import time_to_string
 from libraries.drawing import draw_boxes
+from libraries.stream_publisher import StreamPublisher
+from libraries.stream_receiver import StreamReceiver
 import json
 import time
 import os
@@ -107,6 +109,13 @@ def live(model: 'RKNN_instance | YOLO', config, names):
     if not cap.isOpened():
         print("Error: Could not open video stream.")
         exit()
+        
+    # Setup streaming
+    if config['livestream']:
+        streamer = StreamPublisher(
+            "live_" + config['sn'], start_stream=False, host=config['local_ip'], port=1883
+        )
+        streamer.start_streaming()
 
     # Initialize counter and timers
     frame_count = 0
@@ -121,97 +130,103 @@ def live(model: 'RKNN_instance | YOLO', config, names):
     
 
     is_yolo = isinstance(model, YOLO)
+    
+    try:
+        while True:
+            ret, frame = cap.read()
 
-    while True:
-        ret, frame = cap.read()
+            if not ret:
+                print("Error: Could not read frame.")
+                break
 
-        if not ret:
-            print("Error: Could not read frame.")
-            break
-
-        frame_count += 1
-        current_time = time.time()
-        # Send Heartbeat
-        if current_time - last_heartbeat_time >= config["heartbeat_interval"]:
-            messages = data_uploader.send_heartbeat(
-                config["sn"], config["local_ip"], time_to_string(current_time)
-            )
-            print(f"Heartbeat Response: {str(messages)}")
-            last_heartbeat_time = current_time
+            frame_count += 1
+            current_time = time.time()
+            # Send Heartbeat
+            if current_time - last_heartbeat_time >= config["heartbeat_interval"]:
+                messages = data_uploader.send_heartbeat(
+                    config["sn"], config["local_ip"], time_to_string(current_time)
+                )
+                print(f"Heartbeat Response: {str(messages)}")
+                last_heartbeat_time = current_time
             
-        # Perform inference every 'seconds_per_frame' seconds
-        if current_time - last_data_sent_time >= config["seconds_per_frame"]:
+            # Send live stream data
+            if config['livestream']:
+                streamer.updateFrame(frame)
+                
+            # Perform inference every 'seconds_per_frame' seconds
+            if current_time - last_data_sent_time >= config["seconds_per_frame"]:
 
-            if is_yolo:
-                # YOLO (Ultralytics) inference
-                results = model(frame)
-                result = results[0]
-                boxes = result.boxes.xyxy.cpu().numpy()
-                class_ids = result.boxes.cls.cpu().numpy().astype(int)
-                scores = result.boxes.conf.cpu().numpy()
+                if is_yolo:
+                    # YOLO (Ultralytics) inference
+                    results = model(frame)
+                    result = results[0]
+                    boxes = result.boxes.xyxy.cpu().numpy()
+                    class_ids = result.boxes.cls.cpu().numpy().astype(int)
+                    scores = result.boxes.conf.cpu().numpy()
 
-            else:
-                # RKNN inference
-                boxes, class_ids, scores = model.detect(frame)
+                else:
+                    # RKNN inference
+                    boxes, class_ids, scores = model.detect(frame)
 
-            # Print inferred classes
-            # inferred_classes = [names[class_id] for class_id in class_ids]
-            # print(f"Frame {frame_count}: Inferred classes - {inferred_classes}")
+                # Print inferred classes
+                # inferred_classes = [names[class_id] for class_id in class_ids]
+                # print(f"Frame {frame_count}: Inferred classes - {inferred_classes}")
 
-            # Check for violation
-            # Check for violation
-            violation_classes = {1, 3, 5, 6, 9, 10}
-            violation_list = []
-            violation_class_ids = []  # List to store class IDs that are violations
-            violation_boxes = []  # List to store bounding boxes associated with violations
+                # Check for violation
+                violation_classes = {1, 3, 5, 6, 9, 10}
+                violation_list = []
+                violation_class_ids = []  
+                violation_boxes = [] 
 
-            for i, class_id in enumerate(class_ids):
-                if class_id in violation_classes:
-                    violation_list.append(names[class_id])
-                    violation_class_ids.append(class_id)
-                    violation_boxes.append(boxes[i])
+                for i, class_id in enumerate(class_ids):
+                    if class_id in violation_classes:
+                        violation_list.append(names[class_id])
+                        violation_class_ids.append(class_id)
+                        violation_boxes.append(boxes[i])
 
-            start_time = time_to_string(last_data_sent_time)
-            end_time = time_to_string(current_time)
+                start_time = time_to_string(last_data_sent_time)
+                end_time = time_to_string(current_time)
 
-            # Prepare data for sending
-            data = {
-                "sn": config['sn'],
-                "violation": True if len(violation_list) != 0 else False,
-                "violation_list": violation_list,
-                "start_time": start_time,
-                "end_time": end_time
-            }
+                # Prepare data for sending
+                data = {
+                    "sn": config['sn'],
+                    "violation": True if len(violation_list) != 0 else False,
+                    "violation_list": violation_list,
+                    "start_time": start_time,
+                    "end_time": end_time
+                }
 
-            # Draw detections on the frame
-            combined_img = draw_boxes(frame.copy(), violation_boxes, violation_class_ids, names)
+                # Draw detections on the frame
+                combined_img = draw_boxes(frame.copy(), violation_boxes, violation_class_ids, names)
 
-            # Save the image temporarily
-            temp_image_path = "temp_image.jpg"
-            cv2.imwrite(temp_image_path, combined_img)
+                # Save the image temporarily
+                temp_image_path = "temp_image.jpg"
+                cv2.imwrite(temp_image_path, combined_img)
 
-            # Prepare files for sending
-            files = {"image": open(temp_image_path, "rb")}
+                # Prepare files for sending
+                files = {"image": open(temp_image_path, "rb")}
 
-            # Send data with image
-            messages = data_uploader.send_data(data, files=files)
+                # Send data with image
+                messages = data_uploader.send_data(data, files=files)
 
-            # Remove temp image
-            os.remove(temp_image_path)
+                # Remove temp image
+                os.remove(temp_image_path)
 
-            # Print messages from data sending
-            print(f"Kitchen Datasend Response: {str(messages)}")
-            last_data_sent_time = current_time
+                # Print messages from data sending
+                print(f"Kitchen Datasend Response: {str(messages)}")
+                last_data_sent_time = current_time
 
-            if config["show"]:
-                cv2.namedWindow("Output", cv2.WINDOW_NORMAL)
-                cv2.imshow("Output", combined_img)
-                key = cv2.waitKey(1)
-                if key == 27:
-                    break
-
-    cap.release()
-    cv2.destroyAllWindows()
+                if config["show"]:
+                    cv2.namedWindow("Output", cv2.WINDOW_NORMAL)
+                    cv2.imshow("Output", combined_img)
+                    key = cv2.waitKey(1)
+                    if key == 27:
+                        break
+    finally:
+        cap.release()
+        cv2.destroyAllWindows()        
+        if config['livestream']:
+            streamer.stop_streaming()
 
 
 # Usage

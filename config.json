@@ -4,7 +4,7 @@
     "target" : "rk3588",
     "seconds_per_frame" : 5,
     "heartbeat_interval" : 5,
-    "live" : false,
+    "live" : true,
     "show" : false,
     "always_send_frames" : true,
     "livestream":true,
@@ -13,5 +13,5 @@
     "data_send_url" : "https://hajjdrf.transformsai.com/camera/create-clean-indicator/",
     "heartbeat_url": "https://hajjdrf.transformsai.com/camera/create-camera-heartbeat/",
     "X-Secret-Key" : "e5oNH8Yhx8eJml4bSxYw",
-    "local_ip": "192.168.1.134"
+    "local_ip": "192.168.1.84"
 }
