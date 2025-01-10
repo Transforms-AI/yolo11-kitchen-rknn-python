@@ -137,7 +137,8 @@ def live(model: 'RKNN_instance | YOLO', config, names):
 
             if not ret:
                 print("Error: Could not read frame.")
-                break
+                cap = cv2.VideoCapture(video_source)
+                continue
 
             frame_count += 1
             current_time = time.time()
@@ -173,7 +174,7 @@ def live(model: 'RKNN_instance | YOLO', config, names):
                 print(f"Frame {frame_count}: Inferred classes - {inferred_classes}")
 
                 # Check for violation
-                violation_classes = {1, 3, 5, 6, 9, 10}
+                violation_classes = [1, 3, 5, 6, 9, 10]
                 violation_list = []
                 violation_class_ids = []  
                 violation_boxes = [] 
@@ -186,12 +187,12 @@ def live(model: 'RKNN_instance | YOLO', config, names):
 
                 start_time = time_to_string(last_data_sent_time)
                 end_time = time_to_string(current_time)
-
+                
                 # Prepare data for sending
                 data = {
                     "sn": config['sn'],
+                    "violation_list": json.dumps(violation_list),
                     "violation": True if len(violation_list) != 0 else False,
-                    "violation_list": violation_list,
                     "start_time": start_time,
                     "end_time": end_time
                 }
@@ -206,8 +207,10 @@ def live(model: 'RKNN_instance | YOLO', config, names):
 
                 # Prepare files for sending
                 files = {"image": open(temp_image_path, "rb")}
+                # files = None
 
                 # Send data with image
+                print(data)
                 messages = data_uploader.send_data(data, files=files)
 
                 # Remove temp image
