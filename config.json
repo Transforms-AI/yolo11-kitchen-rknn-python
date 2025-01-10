@@ -1,5 +1,5 @@
 {
-    "sn" : "CAM755102",
+    "sn" : "KITCHEN1",
     "model" : "models/yolo8s-kitchen.pt",
     "target" : "rk3588",
     "seconds_per_frame" : 5,
@@ -10,7 +10,7 @@
     "livestream":true,
     "video_source" : "rtsp://admin:ipcam765@192.168.1.138:554/Streaming/Channels/101/",
     "local_video_source" : "kitchen-test.mp4",
-    "data_send_url" : "https://hajjdrf.transformsai.com/camera/create-clean-indicator/",
+    "data_send_url" : "https://hajjdrf.transformsai.com/camera/create-kitchen-violation-report/",
     "heartbeat_url": "https://hajjdrf.transformsai.com/camera/create-camera-heartbeat/",
     "X-Secret-Key" : "e5oNH8Yhx8eJml4bSxYw",
     "local_ip": "192.168.1.84"
