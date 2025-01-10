@@ -169,8 +169,8 @@ def live(model: 'RKNN_instance | YOLO', config, names):
                     boxes, class_ids, scores = model.detect(frame)
 
                 # Print inferred classes
-                # inferred_classes = [names[class_id] for class_id in class_ids]
-                # print(f"Frame {frame_count}: Inferred classes - {inferred_classes}")
+                inferred_classes = [names[class_id] for class_id in class_ids]
+                print(f"Frame {frame_count}: Inferred classes - {inferred_classes}")
 
                 # Check for violation
                 violation_classes = {1, 3, 5, 6, 9, 10}
@@ -197,7 +197,8 @@ def live(model: 'RKNN_instance | YOLO', config, names):
                 }
 
                 # Draw detections on the frame
-                combined_img = draw_boxes(frame.copy(), violation_boxes, violation_class_ids, names)
+                # combined_img = draw_boxes(frame.copy(), violation_boxes, violation_class_ids, names)
+                combined_img = draw_boxes(frame.copy(), boxes, class_ids, names)
 
                 # Save the image temporarily
                 temp_image_path = "temp_image.jpg"
