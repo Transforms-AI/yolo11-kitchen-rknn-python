@@ -16,8 +16,8 @@ def draw_boxes(frame, boxes, classes, class_to_label, confidences=None):
     frame_height, frame_width = frame.shape[:2]
 
     # Calculate text size relative to image width
-    text_size = max(1, int(frame_width / 500))  # Adjust 500 for desired scaling
-    text_thickness = max(1, int(frame_width / 500))
+    text_size = max(1, int(frame_width / 1000))  # Adjust 500 for desired scaling
+    text_thickness = max(1, int(frame_width / 1000))
 
     # Generate a color palette for unique classes
     unique_classes = sorted(list(set(classes)))
@@ -31,7 +31,7 @@ def draw_boxes(frame, boxes, classes, class_to_label, confidences=None):
         color = class_to_color[class_index]
 
         # Add confidence if available
-        if confidences is not None:
+        if confidences is not None and len(confidences) > 0:
             confidence = confidences[i]
             label = f"{label}: {confidence:.2f}"
 
