@@ -53,25 +53,22 @@ def demo(model: 'RKNN_instance | YOLO', config, names, person_model):
         names: Dictionary mapping class IDs to class names (used for RKNN).
         person_model: The YOLO model for person detection.
     """
-
+    
+    # Setup video
     video_source = config["local_video_source"]
-
-    cap = cv2.VideoCapture(video_source)
-
-    if not cap.isOpened():
-        print(f"Error: Could not open video source: {video_source}")
-        return
+    cap_async = VideoCaptureAsync(video_source)
+    cap_async.start()
 
     cv2.namedWindow("Output", cv2.WINDOW_AUTOSIZE)
 
     is_yolo = isinstance(model, YOLO)
 
     while True:
-        ret, frame = cap.read()
+        ret, frame = cap_async.read()
 
         if not ret:
             print("End of video stream or error reading frame.")
-            cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
+            cap_async.set(cv2.CAP_PROP_POS_FRAMES, 0)
             continue
 
         # Detect objects
@@ -109,6 +106,12 @@ def demo(model: 'RKNN_instance | YOLO', config, names, person_model):
         filtered_class_ids = []
         filtered_scores = []
 
+        # Check for violation (using filtered results)
+        violation_classes = [1, 3, 5, 6, 9, 10]
+        violation_list = []
+        violation_class_ids = []  
+        violation_boxes = [] 
+
         person_related_classes = [0, 1, 2, 3, 4, 5, 8, 10]  # Classes related to a person (hat, no_hat, mask, etc.)
         # person_related_classes = []
         iou_threshold = config['iou_threshold']  # Adjust as needed
@@ -136,15 +139,22 @@ def demo(model: 'RKNN_instance | YOLO', config, names, person_model):
                     filtered_class_ids.append(class_id)
                     filtered_scores.append(score)
 
+        for i, class_id in enumerate(filtered_class_ids):
+            if class_id in violation_classes:
+                violation_list.append(names[class_id])
+                violation_class_ids.append(class_id)
+                violation_boxes.append(filtered_boxes[i])
+
         # Draw detections on the frame
-        combined_img = draw_boxes(frame.copy(), filtered_boxes, filtered_class_ids, names)
+        # combined_img = draw_boxes(frame.copy(), filtered_boxes, filtered_class_ids, names)
+        combined_img = draw_boxes(frame.copy(), violation_boxes, violation_class_ids, names)
 
         cv2.imshow("Output", combined_img)
         key = cv2.waitKey(1)
         if key == 27:
             break
 
-    cap.release()
+    cap_async.release()
     cv2.destroyAllWindows()
 
 def live(model: 'RKNN_instance | YOLO', config, names, person_model):

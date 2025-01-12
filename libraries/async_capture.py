@@ -1,5 +1,6 @@
 import threading
 import cv2
+import time
 
 class VideoCaptureAsync:
     """
@@ -16,6 +17,8 @@ class VideoCaptureAsync:
         _frame (numpy.ndarray): The most recently captured frame.
         _read_lock (threading.Lock): A lock to ensure thread-safe access to _grabbed and _frame.
         _thread (threading.Thread): The thread responsible for capturing frames.
+        _fps (float): Frames per second of the video source.
+        _last_frame_time (float): Timestamp of the last grabbed frame.
     """
 
     def __init__(self, src=0, width=640, height=480, driver=None):
@@ -38,6 +41,8 @@ class VideoCaptureAsync:
         self._frame = None
         self._read_lock = threading.Lock()
         self._thread = None
+        self._fps = None
+        self._last_frame_time = 0
 
         self._initialize_capture()
 
@@ -53,6 +58,12 @@ class VideoCaptureAsync:
 
         self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, self.width)
         self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, self.height)
+
+        # Get the FPS of the video source
+        self._fps = self.cap.get(cv2.CAP_PROP_FPS)
+        if self._fps == 0:
+            print("Warning: Could not determine FPS. Defaulting to 30.")
+            self._fps = 30
 
     def get(self, propId):
         """
@@ -94,14 +105,26 @@ class VideoCaptureAsync:
 
     def _update(self):
         """
-        Continuously captures frames from the video source.
+        Continuously captures frames from the video source, respecting the video's FPS.
         This method runs in a separate thread.
         """
         while self.started:
-            grabbed, frame = self.cap.read()
-            with self._read_lock:
-                self._grabbed = grabbed
-                self._frame = frame
+            current_time = time.time()
+            time_since_last_frame = current_time - self._last_frame_time
+
+            # Calculate the desired time between frames based on FPS
+            desired_frame_time = 1.0 / self._fps
+
+            # If enough time has passed, grab the next frame
+            if time_since_last_frame >= desired_frame_time:
+                grabbed, frame = self.cap.read()
+                with self._read_lock:
+                    self._grabbed = grabbed
+                    self._frame = frame
+                    self._last_frame_time = current_time
+            else:
+                # If not enough time has passed, sleep for a short duration
+                time.sleep(desired_frame_time - time_since_last_frame)
 
     def read(self):
         """
