@@ -4,13 +4,14 @@ import time
 
 class VideoCaptureAsync:
     """
-    Asynchronous video capture class.
+    Asynchronous video capture class with looping functionality.
 
     Attributes:
         src (int or str): The video source. Can be a camera index (0, 1, ...) or a video file path.
         width (int): The desired width of the captured frames.
         height (int): The desired height of the captured frames.
         driver (int, optional): The backend API to use for video capture (e.g., cv2.CAP_DSHOW).
+        loop (bool): Whether to loop the video when it ends.
         cap (cv2.VideoCapture): The OpenCV video capture object.
         started (bool): Indicates whether the capture thread has started.
         _grabbed (bool): Indicates whether a frame was successfully grabbed in the last read.
@@ -19,9 +20,10 @@ class VideoCaptureAsync:
         _thread (threading.Thread): The thread responsible for capturing frames.
         _fps (float): Frames per second of the video source.
         _last_frame_time (float): Timestamp of the last grabbed frame.
+        _frame_count (int): Total number of frames in the video (if applicable).
     """
 
-    def __init__(self, src=0, width=640, height=480, driver=None):
+    def __init__(self, src=0, width=640, height=480, driver=None, loop=False):
         """
         Initializes the VideoCaptureAsync object.
 
@@ -30,11 +32,13 @@ class VideoCaptureAsync:
             width (int): The desired frame width.
             height (int): The desired frame height.
             driver (int, optional): The backend API to use.
+            loop (bool): Whether to loop the video.
         """
         self.src = src
         self.width = width
         self.height = height
         self.driver = driver
+        self.loop = loop
         self.cap = None
         self.started = False
         self._grabbed = False
@@ -43,6 +47,7 @@ class VideoCaptureAsync:
         self._thread = None
         self._fps = None
         self._last_frame_time = 0
+        self._frame_count = 0
 
         self._initialize_capture()
 
@@ -64,6 +69,10 @@ class VideoCaptureAsync:
         if self._fps == 0:
             print("Warning: Could not determine FPS. Defaulting to 30.")
             self._fps = 30
+
+        # Get the total number of frames if it's a video file
+        if isinstance(self.src, str):  # Check if it's a file path
+            self._frame_count = int(self.cap.get(cv2.CAP_PROP_FRAME_COUNT))
 
     def get(self, propId):
         """
@@ -87,9 +96,12 @@ class VideoCaptureAsync:
         """
         self.cap.set(propId, value)
 
-    def start(self):
+    def start(self, loop=None):
         """
         Starts the asynchronous video capture thread.
+
+        Args:
+            loop (bool, optional): Whether to loop the video. Overrides the instance's loop setting.
 
         Returns:
             VideoCaptureAsync: The current instance.
@@ -98,14 +110,17 @@ class VideoCaptureAsync:
             print('[!] Asynchronous video capturing has already been started.')
             return self
 
+        if loop is not None:
+            self.loop = loop
+
         self.started = True
-        self._thread = threading.Thread(target=self._update, daemon=True)  # Use daemon thread
+        self._thread = threading.Thread(target=self._update, daemon=True)
         self._thread.start()
         return self
 
     def _update(self):
         """
-        Continuously captures frames from the video source, respecting the video's FPS.
+        Continuously captures frames from the video source, respecting the video's FPS and handling looping.
         This method runs in a separate thread.
         """
         while self.started:
@@ -118,6 +133,13 @@ class VideoCaptureAsync:
             # If enough time has passed, grab the next frame
             if time_since_last_frame >= desired_frame_time:
                 grabbed, frame = self.cap.read()
+
+                # Handle looping if enabled and it's a video file
+                if self.loop and not grabbed and self._frame_count > 0:
+                    # Reset to the beginning of the video
+                    self.cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
+                    grabbed, frame = self.cap.read()
+
                 with self._read_lock:
                     self._grabbed = grabbed
                     self._frame = frame
@@ -137,7 +159,7 @@ class VideoCaptureAsync:
         """
         with self._read_lock:
             grabbed = self._grabbed
-            frame = self._frame.copy() if grabbed else None # Copy to avoid issues if the frame is modified outside
+            frame = self._frame.copy() if grabbed else None
         return grabbed, frame
 
     def stop(self):

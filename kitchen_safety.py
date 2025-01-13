@@ -9,6 +9,7 @@ import json
 import time
 import os
 from ultralytics import YOLO  # Import YOLO from ultralytics
+import torch
 
 def calculate_iou(box1, box2):
     """
@@ -56,7 +57,7 @@ def demo(model: 'RKNN_instance | YOLO', config, names, person_model):
     
     # Setup video
     video_source = config["local_video_source"]
-    cap_async = VideoCaptureAsync(video_source)
+    cap_async = VideoCaptureAsync(video_source, loop=True)
     cap_async.start()
 
     cv2.namedWindow("Output", cv2.WINDOW_AUTOSIZE)
@@ -68,7 +69,6 @@ def demo(model: 'RKNN_instance | YOLO', config, names, person_model):
 
         if not ret:
             print("End of video stream or error reading frame.")
-            cap_async.set(cv2.CAP_PROP_POS_FRAMES, 0)
             continue
 
         # Detect objects
@@ -106,12 +106,6 @@ def demo(model: 'RKNN_instance | YOLO', config, names, person_model):
         filtered_class_ids = []
         filtered_scores = []
 
-        # Check for violation (using filtered results)
-        violation_classes = [1, 3, 5, 6, 9, 10]
-        violation_list = []
-        violation_class_ids = []  
-        violation_boxes = [] 
-
         person_related_classes = [0, 1, 2, 3, 4, 5, 8, 10]  # Classes related to a person (hat, no_hat, mask, etc.)
         # person_related_classes = []
         iou_threshold = config['iou_threshold']  # Adjust as needed
@@ -139,15 +133,8 @@ def demo(model: 'RKNN_instance | YOLO', config, names, person_model):
                     filtered_class_ids.append(class_id)
                     filtered_scores.append(score)
 
-        for i, class_id in enumerate(filtered_class_ids):
-            if class_id in violation_classes:
-                violation_list.append(names[class_id])
-                violation_class_ids.append(class_id)
-                violation_boxes.append(filtered_boxes[i])
-
         # Draw detections on the frame
-        # combined_img = draw_boxes(frame.copy(), filtered_boxes, filtered_class_ids, names)
-        combined_img = draw_boxes(frame.copy(), violation_boxes, violation_class_ids, names)
+        combined_img = draw_boxes(frame.copy(), filtered_boxes, filtered_class_ids, names)
 
         cv2.imshow("Output", combined_img)
         key = cv2.waitKey(1)
@@ -213,9 +200,9 @@ def live(model: 'RKNN_instance | YOLO', config, names, person_model):
                 print(f"Heartbeat Response: {str(messages)}")
                 last_heartbeat_time = current_time
             
-            # Send live stream data
-            if config['livestream']:
-                streamer.updateFrame(frame)
+            # # Send live stream data
+            # if config['livestream']:
+            #     streamer.updateFrame(frame)
                 
             # Perform inference every 'seconds_per_frame' seconds
             if current_time - last_data_sent_time >= config["seconds_per_frame"]:
@@ -302,20 +289,25 @@ def live(model: 'RKNN_instance | YOLO', config, names, person_model):
                 }
 
                 # Draw detections on the frame (using filtered results)
-                # combined_img = draw_boxes(frame.copy(), violation_boxes, violation_class_ids, names)
-                combined_img = draw_boxes(frame.copy(), filtered_boxes, filtered_class_ids, names)
+                combined_img = draw_boxes(frame.copy(), violation_boxes, violation_class_ids, names)
+                # combined_img = draw_boxes(frame.copy(), filtered_boxes, filtered_class_ids, names)
 
                 # Prepare files for sending
                 files = {"image": mat_to_response(combined_img)}
                 # files = None
 
                 # Send data with image
-                print(data)
+                # print(data)
                 messages = data_uploader.send_data(data, files=files)
 
                 # Print messages from data sending
                 print(f"Kitchen Datasend Response: {str(messages)}")
                 last_data_sent_time = current_time
+                
+                # Send live stream data
+                if config['livestream']:
+                    streamer.updateFrame(combined_img)
+                
 
                 if config["show"]:
                     cv2.namedWindow("Output", cv2.WINDOW_NORMAL)
@@ -334,6 +326,9 @@ if __name__ == '__main__':
     # Load configuration from config.json
     with open("config.json", "r") as f:
         config = json.load(f)
+
+    # Set YOLOv8 to quiet mode
+    # os.environ['YOLO_VERBOSE'] = 'False'
         
     # label mapping
     labels = ['hat','no_hat', 'mask','no_mask','gloves','no_gloves','food_uncover','pilgrim','no_pilgrim','waste','incorrect_mask','food_processing']
@@ -341,16 +336,19 @@ if __name__ == '__main__':
     for i, label in enumerate(labels):
         names[i] = label
         
+    device = "cuda" if torch.cuda.is_available() else "cpu"
+    print(f"Kitchen device: {device}")
+        
     # Load the ONNX model
     model_path = config["model"]
     if ".rknn" in model_path:
         from libraries.rknn import RKNN_instance
         model = RKNN_instance(model_path, conf_thres=0.2, iou_thres=0.2, classes=(*labels,))
     else:
-        model = YOLO(model_path)
+        model = YOLO(model_path).to(device)
         
     # Load person detection for detection grounding
-    person_model = YOLO(config['person_model']) ### use this model for person bounding boxes
+    person_model = YOLO(config['person_model']).to(device) ### use this model for person bounding boxes
 
     if not config["live"]:
         demo(model, config, names, person_model)
