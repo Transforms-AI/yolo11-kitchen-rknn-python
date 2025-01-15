@@ -31,14 +31,11 @@ def calculate_iou(box1, box2):
     # Compute the area of intersection rectangle
     interArea = max(0, xB - xA + 1) * max(0, yB - yA + 1)
 
-    # Compute the area of both the prediction and ground-truth
-    # rectangles
+    # Compute the area of both the prediction and ground-truth rectangles
     box1Area = (box1[2] - box1[0] + 1) * (box1[3] - box1[1] + 1)
     box2Area = (box2[2] - box2[0] + 1) * (box2[3] - box2[1] + 1)
 
-    # Compute the intersection over union by taking the intersection
-    # area and dividing it by the sum of prediction + ground-truth
-    # areas - the intersection area
+    # Compute the intersection over union by taking the intersection area and dividing it by the sum of prediction + ground-truth areas - the intersection area
     iou = interArea / float(box1Area + box2Area - interArea)
 
     return iou
@@ -75,7 +72,7 @@ def demo(model: 'RKNN_instance | YOLO', config, names, person_model):
         start = time.perf_counter()
 
         # --- Person Detection ---
-        person_results = person_model(frame)
+        person_results = person_model.predict(frame, half=True)
         person_result = person_results[0]
         person_boxes = person_result.boxes.xyxy.cpu().numpy()
         person_class_ids = person_result.boxes.cls.cpu().numpy().astype(int)
@@ -85,7 +82,7 @@ def demo(model: 'RKNN_instance | YOLO', config, names, person_model):
 
         if is_yolo:
             # YOLO (Ultralytics) inference
-            results = model(frame)  # Assuming you want to display results on the original frame
+            results = model.predict(frame, half=True)  # Assuming you want to display results on the original frame
             inference_time = (time.perf_counter() - start) * 1000
             print(f"Inference time (YOLO): {inference_time:.2f} ms")
 
@@ -170,8 +167,9 @@ def live(model: 'RKNN_instance | YOLO', config, names, person_model):
 
     # Initialize counter and timers
     frame_count = 0
-    last_data_sent_time = time.time()
+    last_datasend_time = time.time()
     last_heartbeat_time = time.time()
+    last_inference_time = time.time()
 
     # Initialize DataUploader
     api_url = config['data_send_url']
@@ -194,21 +192,16 @@ def live(model: 'RKNN_instance | YOLO', config, names, person_model):
             current_time = time.time()
             # Send Heartbeat
             if current_time - last_heartbeat_time >= config["heartbeat_interval"]:
-                messages = data_uploader.send_heartbeat(
+                data_uploader.send_heartbeat(
                     config["sn"], config["local_ip"], time_to_string(current_time)
                 )
-                print(f"Heartbeat Response: {str(messages)}")
                 last_heartbeat_time = current_time
-            
-            # # Send live stream data
-            # if config['livestream']:
-            #     streamer.updateFrame(frame)
                 
-            # Perform inference every 'seconds_per_frame' seconds
-            if current_time - last_data_sent_time >= config["seconds_per_frame"]:
+            # Perform inference every 'inference_interval' seconds
+            if current_time - last_inference_time >= config["inference_interval"]:
                 
                 # --- Person Detection ---
-                person_results = person_model(frame)
+                person_results = person_model.predict(frame, half=True)
                 person_result = person_results[0]
                 person_boxes = person_result.boxes.xyxy.cpu().numpy()
                 person_class_ids = person_result.boxes.cls.cpu().numpy().astype(int)
@@ -218,7 +211,7 @@ def live(model: 'RKNN_instance | YOLO', config, names, person_model):
 
                 if is_yolo:
                     # YOLO (Ultralytics) inference
-                    results = model(frame)
+                    results = model.predict(frame, half=True)
                     result = results[0]
                     boxes = result.boxes.xyxy.cpu().numpy()
                     class_ids = result.boxes.cls.cpu().numpy().astype(int)
@@ -275,46 +268,44 @@ def live(model: 'RKNN_instance | YOLO', config, names, person_model):
                         violation_list.append(names[class_id])
                         violation_class_ids.append(class_id)
                         violation_boxes.append(filtered_boxes[i])
-
-                start_time = time_to_string(last_data_sent_time)
-                end_time = time_to_string(current_time)
-                
-                # Prepare data for sending
-                data = {
-                    "sn": config['sn'],
-                    "violation_list": json.dumps(violation_list),
-                    "violation": True if len(violation_list) != 0 else False,
-                    "start_time": start_time,
-                    "end_time": end_time
-                }
-
+                        
                 # Draw detections on the frame (using filtered results)
-                combined_img = draw_boxes(frame.copy(), violation_boxes, violation_class_ids, names)
+                frame = draw_boxes(frame.copy(), violation_boxes, violation_class_ids, names)
                 # combined_img = draw_boxes(frame.copy(), filtered_boxes, filtered_class_ids, names)
+                
+                if time.time() - last_datasend_time >= config['datasend_interval']:
+                    start_time = time_to_string(last_datasend_time)
+                    end_time = time_to_string(current_time)
+                    
+                    # Prepare data for sending
+                    data = {
+                        "sn": config['sn'],
+                        "violation_list": json.dumps(violation_list),
+                        "violation": True if len(violation_list) != 0 else False,
+                        "start_time": start_time,
+                        "end_time": end_time
+                    }
 
-                # Prepare files for sending
-                files = {"image": mat_to_response(combined_img)}
-                # files = None
+                    # Prepare files for sending
+                    files = {"image": mat_to_response(frame)}
 
-                # Send data with image
-                # print(data)
-                messages = data_uploader.send_data(data, files=files)
-
-                # Print messages from data sending
-                print(f"Kitchen Datasend Response: {str(messages)}")
-                last_data_sent_time = current_time
+                    # Send data with image
+                    data_uploader.send_data(data, files=files)
+                    last_datasend_time = time.time()
                 
                 # Send live stream data
                 if config['livestream']:
-                    streamer.updateFrame(combined_img)
+                    streamer.updateFrame(frame)
                 
 
                 if config["show"]:
                     cv2.namedWindow("Output", cv2.WINDOW_NORMAL)
-                    cv2.imshow("Output", combined_img)
+                    cv2.imshow("Output", frame)
                     key = cv2.waitKey(1)
                     if key == 27:
                         break
+                    
+                last_inference_time = current_time
     finally:
         cap_async.release()
         cv2.destroyAllWindows()        
