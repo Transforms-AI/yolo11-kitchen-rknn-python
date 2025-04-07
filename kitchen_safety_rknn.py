@@ -40,7 +40,7 @@ def calculate_iou(box1, box2):
 
     return iou
 
-def demo(model: RKNN_instance, config, names, person_model):
+def demo(model: RKNN_instance, config, names, person_model: RKNN_instance):
     """
     Performs object detection on a video stream using either RKNN or YOLO (Ultralytics),
     with person-based grounding for kitchen safety detections.
@@ -57,7 +57,8 @@ def demo(model: RKNN_instance, config, names, person_model):
     cap_async = VideoCaptureAsync(video_source, loop=True)
     cap_async.start()
 
-    cv2.namedWindow("Output", cv2.WINDOW_AUTOSIZE)
+    if config['show']:
+        cv2.namedWindow("Output", cv2.WINDOW_AUTOSIZE)
 
     while True:
         ret, frame = cap_async.read()
@@ -70,10 +71,14 @@ def demo(model: RKNN_instance, config, names, person_model):
         start = time.perf_counter()
 
         # --- Person Detection ---
-        person_results = person_model.predict(frame, half=True)
-        person_result = person_results[0]
-        person_boxes = person_result.boxes.xyxy.cpu().numpy()
-        person_class_ids = person_result.boxes.cls.cpu().numpy().astype(int)
+        # person_results = person_model.predict(frame, half=True)
+        # person_result = person_results[0]
+        # person_boxes = person_result.boxes.xyxy.cpu().numpy()
+        # person_class_ids = person_result.boxes.cls.cpu().numpy().astype(int)
+        person_boxes, person_class_ids, _ = person_model.detect(frame)
+        if person_boxes is None:
+            person_boxes = []
+            person_class_ids = []
 
         # Filter for person class (assuming class ID 0 represents 'person')
         person_boxes = [box for i, box in enumerate(person_boxes) if person_class_ids[i] == 0]
@@ -118,10 +123,11 @@ def demo(model: RKNN_instance, config, names, person_model):
         # Draw detections on the frame
         combined_img = draw_boxes(frame.copy(), filtered_boxes, filtered_class_ids, names)
 
-        cv2.imshow("Output", combined_img)
-        key = cv2.waitKey(1)
-        if key == 27:
-            break
+        if config['show']:
+            cv2.imshow("Output", combined_img)
+            key = cv2.waitKey(1)
+            if key == 27:
+                break
 
     cap_async.release()
     cv2.destroyAllWindows()
@@ -309,11 +315,11 @@ if __name__ == '__main__':
     model = RKNN_instance(model_path, conf_thres=0.2, iou_thres=0.2, classes=(*labels,))
         
     # Load person detection for detection grounding
-    labels = ['person']
-    names = {}
-    for i, label in enumerate(labels):
-        names[i] = label
-    person_model = RKNN_instance(config['person_model'], conf_thres=0.2, iou_thres=0.2, classes=(*labels,), model_version='v5')
+    person_labels = ['person']
+    person_names = {}
+    for i, label in enumerate(person_labels):
+        person_names[i] = label
+    person_model = RKNN_instance(config['person_model'], conf_thres=0.2, iou_thres=0.2, classes=(*person_labels,), model_version='v5')
 
     if not config["live"]:
         demo(model, config, names, person_model)

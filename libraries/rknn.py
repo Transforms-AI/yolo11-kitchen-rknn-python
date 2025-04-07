@@ -9,7 +9,10 @@ IMG_SIZE = (640, 640)  # (width, height)
 CLASSES = ("person", "bicycle")
 
 class RKNN_instance:
-    def __init__(self, model_path, target='rk3588', device_id=None, conf_thres = OBJ_THRESH, iou_thres = NMS_THRESH, classes = CLASSES, img_size = IMG_SIZE, model_version = 'v11', anchors = 'anchors.txt'):
+    """
+    Supports yolov5, yolov8 and yolo11
+    """
+    def __init__(self, model_path, target='rk3588', device_id=None, conf_thres = OBJ_THRESH, iou_thres = NMS_THRESH, classes = CLASSES, img_size = IMG_SIZE, model_version = 'v11', anchors = 'models/anchors.txt'):
         self.model_path = model_path
         self.target = target
         self.device_id = device_id
@@ -93,18 +96,39 @@ class RKNN_instance:
         y = (y * acc_metrix).sum(2)
         return y.numpy()
 
-    def _box_process(self, position):
+    def _box_process(self, position, anchors=None):
         grid_h, grid_w = position.shape[2:4]
         col, row = np.meshgrid(np.arange(0, grid_w), np.arange(0, grid_h))
         col = col.reshape(1, 1, grid_h, grid_w)
         row = row.reshape(1, 1, grid_h, grid_w)
         grid = np.concatenate((col, row), axis=1)
         stride = np.array([self.img_size[1] // grid_h, self.img_size[0] // grid_w]).reshape(1, 2, 1, 1)
+        
+        if self.model_version == 'v5':
+            col = col.repeat(len(anchors), axis=0)
+            row = row.repeat(len(anchors), axis=0)
+            anchors = np.array(anchors)
+            anchors = anchors.reshape(*anchors.shape, 1, 1)
 
-        position = self._dfl(position)
-        box_xy = grid + 0.5 - position[:, 0:2, :, :]
-        box_xy2 = grid + 0.5 + position[:, 2:4, :, :]
-        xyxy = np.concatenate((box_xy * stride, box_xy2 * stride), axis=1)
+            box_xy = position[:,:2,:,:]*2 - 0.5
+            box_wh = pow(position[:,2:4,:,:]*2, 2) * anchors
+
+            box_xy += grid
+            box_xy *= stride
+            box = np.concatenate((box_xy, box_wh), axis=1)
+
+            # Convert [c_x, c_y, w, h] to [x1, y1, x2, y2]
+            xyxy = np.copy(box)
+            xyxy[:, 0, :, :] = box[:, 0, :, :] - box[:, 2, :, :]/ 2  # top left x
+            xyxy[:, 1, :, :] = box[:, 1, :, :] - box[:, 3, :, :]/ 2  # top left y
+            xyxy[:, 2, :, :] = box[:, 0, :, :] + box[:, 2, :, :]/ 2  # bottom right x
+            xyxy[:, 3, :, :] = box[:, 1, :, :] + box[:, 3, :, :]/ 2  # bottom right y
+        
+        else:
+            position = self._dfl(position)
+            box_xy = grid + 0.5 - position[:, 0:2, :, :]
+            box_xy2 = grid + 0.5 + position[:, 2:4, :, :]
+            xyxy = np.concatenate((box_xy * stride, box_xy2 * stride), axis=1)
 
         return xyxy
    
@@ -146,7 +170,7 @@ class RKNN_instance:
             for i in range(len(reshaped_input)):
                 current_anchors = self.anchors[i]
                 # Box processing needs anchors for v5
-                boxes.append(self._box_process_v5(reshaped_input[i][:, :4, :, :], current_anchors))
+                boxes.append(self._box_process(reshaped_input[i][:, :4, :, :], current_anchors))
                 # Objectness score
                 scores.append(reshaped_input[i][:, 4:5, :, :])
                 # Class confidences
@@ -160,22 +184,9 @@ class RKNN_instance:
             pair_per_branch = len(input_data) // default_branch # Number of tensors per branch
 
             for i in range(default_branch):
-                # Box data index
-                box_data_index = pair_per_branch * i
-                # Remove batch dim if present
-                box_tensor = input_data[box_data_index]
-                if box_tensor.shape[0] == 1:
-                    box_tensor = box_tensor.squeeze(0)
-                boxes.append(self._box_process_v11(box_tensor))
-
-                # Class confidence index
-                class_conf_index = pair_per_branch * i + 1
-                class_conf_tensor = input_data[class_conf_index]
-                if class_conf_tensor.shape[0] == 1:
-                    class_conf_tensor = class_conf_tensor.squeeze(0)
-                classes_conf.append(class_conf_tensor)
-
-                scores.append(np.ones_like(class_conf_tensor[:, :1, :, :], dtype=np.float32))
+                boxes.append(self._box_process(input_data[pair_per_branch*i]))
+                classes_conf.append(input_data[pair_per_branch*i+1])
+                scores.append(np.ones_like(input_data[pair_per_branch*i+1][:,:1,:,:], dtype=np.float32))
 
         # --- Common processing starts here ---
 
