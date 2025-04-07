@@ -309,12 +309,11 @@ if __name__ == '__main__':
     model = RKNN_instance(model_path, conf_thres=0.2, iou_thres=0.2, classes=(*labels,))
         
     # Load person detection for detection grounding
-    # person_model = YOLO(config['person_model']).to(device) ### use this model for person bounding boxes
     labels = ['person']
     names = {}
     for i, label in enumerate(labels):
         names[i] = label
-    person_model = RKNN_instance(model_path, conf_thres=0.2, iou_thres=0.2, classes=(*labels,))
+    person_model = RKNN_instance(config['person_model'], conf_thres=0.2, iou_thres=0.2, classes=(*labels,), model_version='v5')
 
     if not config["live"]:
         demo(model, config, names, person_model)
