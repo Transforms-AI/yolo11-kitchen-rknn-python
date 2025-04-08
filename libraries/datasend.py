@@ -89,7 +89,7 @@ class DataUploader:
         messages = []
         identifier = f"Data Upload - {time.time()}"  # Unique identifier for this upload attempt
         future = self.executor.submit(self._send_data_thread, data, heartbeat, files, messages, identifier)
-        future.add_done_callback(lambda f: self._thread_done_callback(f, data, identifier))  # Add the callback
+        future.add_done_callback(lambda f: self._thread_done_callback(f, identifier))  # Add the callback
 
     def send_heartbeat(self, sn, ip, time):
         """

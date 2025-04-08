@@ -85,6 +85,9 @@ def demo(model: RKNN_instance, config, names, person_model: RKNN_instance):
         
         # RKNN inference
         boxes, class_ids, scores = model.detect(frame)
+        if boxes is None:
+            boxes = []
+            class_ids = []
         inference_time = (time.perf_counter() - start) * 1000
         print(f"Inference time (RKNN): {inference_time:.2f} ms")
 
@@ -189,17 +192,19 @@ def live(model: RKNN_instance, config, names, person_model : RKNN_instance):
             if current_time - last_inference_time >= config["inference_interval"]:
                 
                 # --- Person Detection ---
-                # person_results = person_model.predict(frame, half=True)
-                # person_result = person_results[0]
-                # person_boxes = person_result.boxes.xyxy.cpu().numpy()
-                # person_class_ids = person_result.boxes.cls.cpu().numpy().astype(int)
                 person_boxes, person_class_ids, _ = person_model.detect(frame)
+                if person_boxes is None:
+                    person_boxes = []
+                    person_class_ids = []
 
                 # Filter for person class (assuming class ID 0 represents 'person')
                 person_boxes = [box for i, box in enumerate(person_boxes) if person_class_ids[i] == 0]
 
                 # RKNN inference
                 boxes, class_ids, scores = model.detect(frame)
+                if boxes is None:
+                    boxes = []
+                    class_ids = []
 
                 # --- Grounding with Person Detections ---
                 filtered_boxes = []
@@ -310,9 +315,9 @@ if __name__ == '__main__':
     device = "cuda" if torch.cuda.is_available() else "cpu"
     print(f"Kitchen device: {device}")
         
-    # Load the ONNX model
+    # Load the kitchen safety model
     model_path = config["model"]
-    model = RKNN_instance(model_path, conf_thres=0.2, iou_thres=0.2, classes=(*labels,))
+    model = RKNN_instance(model_path, conf_thres=0.3, iou_thres=0.2, classes=(*labels,))
         
     # Load person detection for detection grounding
     person_labels = ['person']
