@@ -23,7 +23,7 @@ class DataUploader:
         """
         self.api_url = api_url
         self.hearbeat_url = heartbeat_url
-        self.headers = headers or {}
+        self.headers = headers or {"Content-Type": "application/json"}
         self.lock = threading.Lock()
         self.executor = ThreadPoolExecutor(max_workers=max_workers)
         self.max_retries = max_retries
@@ -97,10 +97,9 @@ class DataUploader:
         """
         data = {
             "sn": sn,
-            "version": 2,
             "ip_address": ip,
-            "time_zone": 3,
-            "hw_platform": "Platform_XYZ",
             "time": time
         }
+        
+        print(data)
         self.send_data(data, heartbeat=True)

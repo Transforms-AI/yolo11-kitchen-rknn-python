@@ -4,16 +4,16 @@
     "person_model": "models/peoplecount_yolov5s_i8.rknn",
     "target" : "rk3588",
     "inference_interval" : 1,
-    "heartbeat_interval" : 100,
+    "heartbeat_interval" : 10,
     "datasend_interval" : 10,
     "live" : true,
     "show" : false,
-    "livestream": false,
+    "livestream": true,
     "iou_threshold": 0.01, 
     "video_source" : "rtsp://admin:j40a@234@192.168.8.201:554/Streaming/Channels/101",
     "local_video_source" : "kitchen-test.mp4",
     "data_send_url" : "https://hajjdrf.transformsai.com/camera/create-kitchen-violation-report/",
     "heartbeat_url": "https://hajjdrf.transformsai.com/camera/create-camera-heartbeat/",
     "X-Secret-Key" : "e5oNH8Yhx8eJml4bSxYw",
-    "local_ip": "192.168.1.32"
+    "local_ip": "192.168.8.100"
 }
