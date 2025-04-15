@@ -3,7 +3,7 @@
     "model" : "models/kitchen_yolov8n_i8.rknn",
     "person_model": "models/peoplecount_yolov5s_i8.rknn",
     "target" : "rk3588",
-    "inference_interval" : 1,
+    "inference_interval" : 0.05,
     "heartbeat_interval" : 10,
     "datasend_interval" : 10,
     "live" : true,
