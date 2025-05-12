@@ -155,7 +155,7 @@ def live(model: RKNN_instance, config, names, person_model : RKNN_instance):
     # Setup streaming
     if config['livestream']:
         streamer = StreamPublisher(
-            "live_" + config['sn'], start_stream=False, host=config['local_ip'], port=1883
+            "live_" + config['sn'], start_stream=False, host=config['local_ip'], port=1883, jpeg_quality=70, target_width=1600
         )
         streamer.start_streaming()
 
@@ -287,7 +287,7 @@ def live(model: RKNN_instance, config, names, person_model : RKNN_instance):
                     cv2.namedWindow("Output", cv2.WINDOW_NORMAL)
                     cv2.imshow("Output", frame)
                     key = cv2.waitKey(1)
-                    if key == 27:
+                    if key == 27: # ESC key
                         break
                     
                 last_inference_time = current_time
@@ -306,7 +306,7 @@ if __name__ == '__main__':
     # Set YOLOv8 to quiet mode
     # os.environ['YOLO_VERBOSE'] = 'False'
         
-    # label mapping
+    # label mapping from array to dict
     labels = ['hat','no_hat', 'mask','no_mask','gloves','no_gloves','food_uncover','pilgrim','no_pilgrim','waste','incorrect_mask','food_processing']
     names = {}
     for i, label in enumerate(labels):
