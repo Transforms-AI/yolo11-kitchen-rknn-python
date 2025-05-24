@@ -41,6 +41,13 @@ class DataUploader:
         while retries < self.max_retries and time.time() - start_time < self.timeout:
             try:
                 url = self.hearbeat_url if heartbeat else self.api_url
+                # if files:
+                #     # If files are provided, send data as form-data
+                #     response = requests.post(url, headers=self.headers, data=data, files=files)
+                # else:
+                #     # Otherwise, send data as JSON
+                #     response = requests.post(url, headers=self.headers, json=data)
+
                 response = requests.post(url, headers=self.headers, data=data, files=files)
                 response.raise_for_status()
 
@@ -64,21 +71,20 @@ class DataUploader:
             messages.append("Failed to send data after multiple retries.")
         return messages
 
-    def _thread_done_callback(self, future, identifier):
-        """
-        Callback function executed when a thread finishes.
-        """
+    def _thread_done_callback(self, future, identifier, heartbeat):
         if not self.print_response:
             return
 
+        data_type = "Heartbeat" if heartbeat else "DataSend"
+
         try:
-            messages = future.result()  # Get the result (or exception) from the thread
-            print(f"----- Thread Results for: {identifier} -----")
+            messages = future.result()
+            print(f"----- Thread Results for: {identifier} ({data_type}) -----")
             for msg in messages:
                 print(msg)
             print("------------------------------------------\n")
         except Exception as e:
-            print(f"----- Thread Error for: {identifier} -----")
+            print(f"----- Thread Error for: {identifier} ({data_type}) -----")
             print(f"An error occurred in the thread: {e}")
             print("------------------------------------------\n")
 
@@ -89,7 +95,7 @@ class DataUploader:
         messages = []
         identifier = f"Data Upload - {time.time()}"  # Unique identifier for this upload attempt
         future = self.executor.submit(self._send_data_thread, data, heartbeat, files, messages, identifier)
-        future.add_done_callback(lambda f: self._thread_done_callback(f, identifier))  # Add the callback
+        future.add_done_callback(lambda f: self._thread_done_callback(f, identifier, heartbeat))  # Add the callback
 
     def send_heartbeat(self, sn, ip, time):
         """

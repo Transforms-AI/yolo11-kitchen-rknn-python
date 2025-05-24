@@ -148,8 +148,13 @@ def live(model: RKNN_instance, config, names, person_model : RKNN_instance):
         person_model: The YOLO model for person detection.
     """
     # Setup video
-    video_source = config["video_source"]
-    cap_async = VideoCaptureAsync(video_source)
+    if config['local_video']:
+        video_source = config["local_video_source"]
+        cap_async = VideoCaptureAsync(video_source, loop=True)
+    else:
+        video_source = config['video_source']
+        cap_async = VideoCaptureAsync(video_source)
+        
     cap_async.start()
 
     # Setup streaming
@@ -243,7 +248,7 @@ def live(model: RKNN_instance, config, names, person_model : RKNN_instance):
                 print(f"Frame {frame_count}: Inferred classes - {inferred_classes}")
 
                 # Check for violation (using filtered results)
-                violation_classes = [1, 3, 5, 6, 9, 10]
+                violation_classes = [1, 3, 5, 9, 10]
                 violation_list = []
                 violation_class_ids = []  
                 violation_boxes = [] 
@@ -255,7 +260,8 @@ def live(model: RKNN_instance, config, names, person_model : RKNN_instance):
                         violation_boxes.append(filtered_boxes[i])
                         
                 # Draw detections on the frame (using filtered results)
-                frame = draw_boxes(frame.copy(), violation_boxes, violation_class_ids, names)
+                if config['draw']:
+                    frame = draw_boxes(frame.copy(), violation_boxes, violation_class_ids, names)
                 # combined_img = draw_boxes(frame.copy(), filtered_boxes, filtered_class_ids, names)
                 
                 if time.time() - last_datasend_time >= config['datasend_interval']:
@@ -265,7 +271,7 @@ def live(model: RKNN_instance, config, names, person_model : RKNN_instance):
                     # Prepare data for sending
                     data = {
                         "sn": config['sn'],
-                        "violation_list": json.dumps(violation_list),
+                        "violation_list": json.dumps(list(set(violation_list))),
                         "violation": True if len(violation_list) != 0 else False,
                         "start_time": start_time,
                         "end_time": end_time
