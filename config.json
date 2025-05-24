@@ -5,7 +5,7 @@
     "target" : "rk3588",
     "inference_interval" : 180,
     "heartbeat_interval" : 45,
-    "datasend_interval" : 181,
+    "datasend_interval" : 179,
     "live" : true,
     "draw" : false,
     "show" : false,
