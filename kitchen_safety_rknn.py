@@ -248,7 +248,7 @@ def live(model: RKNN_instance, config, names, person_model : RKNN_instance):
                 print(f"Frame {frame_count}: Inferred classes - {inferred_classes}")
 
                 # Check for violation (using filtered results)
-                violation_classes = [1, 3, 5, 9, 10]
+                violation_classes = [1, 3, 5, 6, 9, 10]
                 violation_list = []
                 violation_class_ids = []  
                 violation_boxes = [] 
@@ -313,7 +313,7 @@ if __name__ == '__main__':
     # os.environ['YOLO_VERBOSE'] = 'False'
         
     # label mapping from array to dict
-    labels = ['hat','no_hat', 'mask','no_mask','gloves','no_gloves','food_uncover','pilgrim','no_pilgrim','waste','incorrect_mask','food_processing']
+    labels = ['hat','no_hat', 'mask','no_mask','gloves','no_gloves','food_uncover','pilgrim','no_pilgrim','garbage','incorrect_mask','food_processing']
     names = {}
     for i, label in enumerate(labels):
         names[i] = label
