@@ -1,21 +1,32 @@
 {
-    "sn" : "kitchen1",
+    "streams" : [
+        {
+            "sn" : "kitchen1",
+            "local_video" : true,
+            "video_source" : "rtsp://admin:j40a@234@192.168.8.201:554/Streaming/Channels/101",
+            "local_video_source" : "demo/kitchen-test.mp4"
+        },
+        {
+            "sn" : "kitchen2",
+            "local_video" : true,
+            "video_source" : "rtsp://admin:j40a@234@192.168.8.201:554/Streaming/Channels/101",
+            "local_video_source" : "demo/kitchen-test-final.mp4"
+        }
+    ],
     "model" : "models/kitchen-10jan-yolo11n_rknn_model",
     "person_model": "models/person-april21-yolo11n_rknn_model",
     "target" : "rk3588",
-    "inference_interval" : 180,
-    "heartbeat_interval" : 45,
-    "datasend_interval" : 179,
+    "multirun_cooldown" : 10,
+    "inference_interval" : 30,
+    "heartbeat_interval" : 5,
+    "datasend_interval" : 29,
     "demo" : false,
     "draw" : false,
     "show" : false,
     "send_data" : true,
     "livestream": true,
-    "local_video" : true,
-    "logging_level" : "info",
+    "logging_level" : "debug",
     "iou_threshold": 0.01, 
-    "video_source" : "rtsp://admin:j40a@234@192.168.8.201:554/Streaming/Channels/101",
-    "local_video_source" : "demo/kitchen-test.mp4",
     "data_send_url" : "https://hajjdrf.aihajjservices.com/camera/create-kitchen-violation-report/",
     "heartbeat_url": "https://hajjdrf.aihajjservices.com/camera/create-camera-heartbeat/",
     "X-Secret-Key" : "e5oNH8Yhx8eJml4bSxYw",
