@@ -11,9 +11,9 @@ source venv/bin/activate
 ```
 *   Install requirements
 ```
-pip install -r requirements-rknn.txt
+pip install -r requirements.txt
 ```
 *   Run
 ```
-python kitchen_safety_rknn.py
+python kitchen_safety.py
 ```
