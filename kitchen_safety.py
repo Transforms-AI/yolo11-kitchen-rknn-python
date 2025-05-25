@@ -181,8 +181,6 @@ def sequential_multi_stream_loop(global_config, main_model, class_names, person_
             'local_ip_resolved': resolved_local_ip,
             'last_successful_read': time.time() # For tracking if a stream is dead
         }
-        if global_config["show"]: 
-            cv2.namedWindow(f"Output_{sn}", cv2.WINDOW_NORMAL)
 
     # Main Sequential Loop
     try:
@@ -202,14 +200,15 @@ def sequential_multi_stream_loop(global_config, main_model, class_names, person_
                         frame, state, state['config'], global_config,
                         main_model, class_names, person_model, device, data_uploader
                     )
+                    
                 elif cap_obj.started: # Still started but no frame
-                    # Stream might be temporarily unavailable or lagging.
                     # Log if it's been too long since a successful read.
-                    if time.time() - state['last_successful_read'] > global_config.get("stream_read_timeout", 30): # Configurable timeout
+                    if time.time() - state['last_successful_read'] > global_config.get("stream_read_timeout", 30): 
                         logger.warning(f"[{sn}] No frame read for over {global_config.get('stream_read_timeout', 30)}s. Stream might be down.")
+                        
                 else: # Not grabbed and not started (or thread died)
                     logger.error(f"[{sn}] Capture thread not running or failed to grab frame. Attempting to restart VideoCaptureAsync.")
-                    state['cap'].release() # Release old one
+                    state['cap'].release() 
                     video_source_uri = state['config'].get("local_video_source") if state['config'].get('local_video') else state['config']["video_source"]
                     is_looping = state['config'].get('local_video', False)
                     new_cap = VideoCaptureAsync(src=video_source_uri, loop=is_looping,
@@ -226,7 +225,6 @@ def sequential_multi_stream_loop(global_config, main_model, class_names, person_
                  break
             if not active_stream_found_this_cycle and stream_states:
                 # All streams failed to provide a frame in this cycle.
-                # This could be normal if all streams are very slow or temporarily down.
                 logger.debug("No active frames from any stream in this cycle. Pausing briefly.")
                 time.sleep(0.1)
 
