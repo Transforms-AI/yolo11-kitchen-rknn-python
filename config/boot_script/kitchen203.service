@@ -5,7 +5,7 @@ After=network.target
 [Service]
 Type=forking
 User=b006
-WorkingDirectory=/home/b006/hajj-system/yolo11-guard-detection-rknn
+WorkingDirectory=/home/b006/hajj-system/yolo11-kitchen-rknn-python
 ExecStart=/bin/bash -c 'source venv/bin/activate && nohup python kitchen_safety.py config/device/kitchen203.json &'
 Restart=always
 RestartSec=10

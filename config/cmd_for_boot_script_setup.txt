@@ -1,4 +1,4 @@
-sudo cp config/boot_script/kitchen203.service /etc/systemd/system/hajj-systems.service
+sudo cp config/boot_script/kitchen202.service /etc/systemd/system/hajj-systems.service
 
 sudo systemctl daemon-reload
 sudo systemctl enable hajj-systems.service
