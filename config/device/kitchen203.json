@@ -15,6 +15,7 @@
     "heartbeat_interval" : 30,
     "datasend_interval" : 300,
     "frame_width" : 960,
+    
     "frame_height" : 540,
     "frame_jpeg_quality" : 80,
     "demo" : false,
