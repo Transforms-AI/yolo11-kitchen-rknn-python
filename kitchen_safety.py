@@ -1,3 +1,4 @@
+import sys
 import cv2
 from libraries.datasend import DataUploader
 from libraries.utils import time_to_string, mat_to_response
@@ -250,6 +251,16 @@ def sequential_multi_stream_loop(global_config, main_model, class_names, person_
 
 
 if __name__ == '__main__':
+    
+    if len(sys.argv) < 2:
+        print("Usage: python guard_detection.py <config_path>...")
+        sys.exit(1)
+
+    paths = sys.argv[1:]
+    print(f"Received paths: {paths}")
+
+    config_path = paths[0]
+    # detector = GeneralSystem(config_path)
     try:
         with open("config.json", "r") as f:
             config = json.load(f)
