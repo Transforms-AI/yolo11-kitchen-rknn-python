@@ -1,0 +1,7 @@
+sudo cp config/boot_script/guard203.service /etc/systemd/system/hajj-systems.service
+
+sudo systemctl daemon-reload
+sudo systemctl enable hajj-systems.service
+sudo systemctl start hajj-systems.service
+
+sudo systemctl status hajj-systems.service

@@ -47,7 +47,7 @@ def process_single_stream_cycle(
     # Heartbeat is independent of frame processing success for this cycle
     if current_time - timers['last_heartbeat_time'] >= global_config["heartbeat_interval"]:
         local_ip_for_heartbeat = stream_state.get('local_ip_resolved', "N/A")
-        data_uploader.send_heartbeat(sn, local_ip_for_heartbeat, time_to_string(current_time))
+        data_uploader.send_heartbeat(sn, config["local_ip"], time_to_string(current_time), status_log="Heartbeat OK")
         timers['last_heartbeat_time'] = current_time
         logger.debug(f"[{sn}] Heartbeat sent.")
 
