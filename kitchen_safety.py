@@ -116,7 +116,7 @@ def process_single_stream_cycle(
                     "start_time": time_to_string(timers['last_datasend_time']),
                     "end_time": time_to_string(current_time)
                 }
-                img_name, img_bytes, img_type = mat_to_response(display_frame)
+                img_name, img_bytes, img_type = mat_to_response(display_frame, max_width=config['frame_width'], jpeg_quality=config['frame_jpeg_quality'])
                 files = {"image": (img_name, img_bytes, img_type)}
 
                 if global_config.get('send_data', True):
