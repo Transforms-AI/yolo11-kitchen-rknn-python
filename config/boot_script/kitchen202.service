@@ -1,0 +1,14 @@
+[Unit]
+Description=Hajj Detection System
+After=network.target
+
+[Service]
+Type=forking
+User=b005
+WorkingDirectory=/home/b005/hajj-system/yolo11-guard-detection-rknn
+ExecStart=/bin/bash -c 'source venv/bin/activate && nohup python guard-detect.py config/device/kitchen202.json &'
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target
