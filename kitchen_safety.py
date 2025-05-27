@@ -90,7 +90,8 @@ def process_single_stream_cycle(
         inferred_names = [class_names[cid] for cid in filtered_class_ids if cid in class_names]
         logger.info(f"[{sn}] Inferred: {inferred_names}")
 
-        violation_cfg = [1, 3, 5, 6, 9, 10]
+        # violation_cfg = [1, 3, 5, 6, 9, 10]
+        violation_cfg = [1, 3, 5, 6, 7, 9, 10]
         current_violations, viol_boxes_draw, viol_cids_draw = [], [], []
         for i, cid in enumerate(filtered_class_ids):
             if cid in violation_cfg and cid in class_names:
@@ -262,12 +263,12 @@ if __name__ == '__main__':
     config_path = paths[0]
     # detector = GeneralSystem(config_path)
     try:
-        with open("config.json", "r") as f:
+        with open(config_path, "r") as f:
             config = json.load(f)
     except Exception as e:
         logging.basicConfig(level=logging.ERROR) # Basic for this error
         logger = logging.getLogger("setup_error")
-        logger.critical(f"Failed to load/parse config.json: {e}")
+        logger.critical(f"Failed to load/parse {config_path}: {e}")
         exit(1)
     
     log_level_str = config.get('logging_level', 'INFO').upper()
@@ -282,7 +283,9 @@ if __name__ == '__main__':
         logger.addHandler(ch)
     logger.info(f"Logging level set to {log_level_str}.")
 
-    labels = ['hat','no_hats', 'mask','no_masks','gloves','no_gloves','food_uncovered','pilgrim','no_pilgrim','garbage','incorrect_mask','food_processing']
+    # violation_cfg = [1, 3, 5, 6, 7, 9, 10]
+    #labels = ['hat','no_hats', 'mask','no_masks','gloves','no_gloves','food_uncovered','pilgrim','no_pilgrim','garbage','incorrect_mask','food_processing']
+    labels = ['hat','no_hats', 'mask','no_masks','gloves','no_gloves','food_uncovered','uniform_missing','no_pilgrim','garbage','no_masks','food_processing']
     class_names_map = {i: label for i, label in enumerate(labels)}
     device = "cuda" if torch.cuda.is_available() else "cpu"
     logger.info(f"Using device: {device}")
