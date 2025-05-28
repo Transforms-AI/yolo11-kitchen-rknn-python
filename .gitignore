@@ -1,3 +1,6 @@
 **/__pycache__
 kitchen-crop.mp4
 venv
+runs/
+*.log
+*.out

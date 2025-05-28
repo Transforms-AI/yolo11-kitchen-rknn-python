@@ -65,12 +65,12 @@ def process_single_stream_cycle(
         main_model_conf = stream_config.get('main_model_conf', 0.3)
         main_model_iou = stream_config.get('main_model_iou', 0.2)
 
-        person_results = person_model.predict(frame, conf=person_model_conf, iou=person_model_iou, device=device, half=use_half, verbose=False)
+        person_results = person_model.predict(frame, conf=person_model_conf, iou=person_model_iou, device=device, half=use_half, verbose=True)
         person_boxes = []
         if person_results and person_results[0].boxes:
             person_boxes = [b.xyxy[0].cpu().numpy() for b in person_results[0].boxes if int(b.cls.cpu()) == 0]
 
-        results = main_model.predict(frame, conf=main_model_conf, iou=main_model_iou, device=device, half=use_half, verbose=False)
+        results = main_model.predict(frame, conf=main_model_conf, iou=main_model_iou, device=device, half=use_half, verbose=True)
         boxes, class_ids, scores = [], [], []
         if results and results[0].boxes:
             boxes = [b.xyxy[0].cpu().numpy() for b in results[0].boxes]
