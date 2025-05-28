@@ -4,3 +4,5 @@ venv
 runs/
 *.log
 *.out
+uploader_cached_files
+uploader_cache.json
