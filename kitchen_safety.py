@@ -134,7 +134,7 @@ def process_single_stream_cycle(
                 send_quality = global_config.get("frame_send_jpeg_quality", global_config.get("frame_jpeg_quality", 85))
                 
                 # Use original_frame for server upload with send-specific settings
-                img_name, img_bytes, img_type = mat_to_response(original_frame, max_width=send_width, max_height=send_height, jpeg_quality=send_quality)
+                img_name, img_bytes, img_type = mat_to_response(original_frame, max_width=send_width, jpeg_quality=send_quality)
                 files = {"image": (img_name, img_bytes, img_type)}
 
                 if global_config.get('send_data', True):
