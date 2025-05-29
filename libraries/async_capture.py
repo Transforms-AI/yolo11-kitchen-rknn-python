@@ -162,8 +162,8 @@ class VideoCaptureAsync:
                 self._send_heartbeat_if_needed(force_send=True, error_message=error_msg)
                 raise ValueError(error_msg)
 
-            self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, self.width)
-            self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, self.height)
+            # self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, self.width)
+            # self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, self.height)
 
             # Attempt to get FPS, provide a more informative warning if it fails
             fps = self.cap.get(cv2.CAP_PROP_FPS)

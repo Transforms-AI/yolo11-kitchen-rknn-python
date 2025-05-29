@@ -26,7 +26,7 @@ def calculate_iou(box1, box2):
 
 
 def process_single_stream_cycle(
-    frame: any, # The frame already read from VideoCaptureAsync
+    frame: any, # The frame already read from VideoCaptureAsync (original size)
     stream_state: dict,
     stream_config: dict,
     global_config: dict,
@@ -45,6 +45,14 @@ def process_single_stream_cycle(
     timers = stream_state['timers']
     current_time = time.time()
 
+    # Keep original frame for server upload
+    original_frame = frame.copy()
+    
+    # Create resized frame for inference and display
+    inference_width = stream_config.get("frame_width", 640)
+    inference_height = stream_config.get("frame_height", 480)
+    inference_frame = cv2.resize(frame, (inference_width, inference_height))
+
     # Heartbeat is independent of frame processing success for this cycle
     if current_time - timers['last_heartbeat_time'] >= global_config["heartbeat_interval"]:
         # Check if there's an error status to send
@@ -53,8 +61,8 @@ def process_single_stream_cycle(
         timers['last_heartbeat_time'] = current_time
         logger.debug(f"[{sn}] Heartbeat sent with status: {error_status}")
 
-    # Default display frame is the input frame
-    display_frame = frame.copy()
+    # Default display frame is the resized frame
+    display_frame = inference_frame.copy()
     violation_list_for_send = []
     violation_occurred_for_send = False
 
@@ -66,12 +74,13 @@ def process_single_stream_cycle(
         main_model_conf = stream_config.get('main_model_conf', 0.3)
         main_model_iou = stream_config.get('main_model_iou', 0.2)
 
-        person_results = person_model.predict(frame, conf=person_model_conf, iou=person_model_iou, device=device, half=use_half, verbose=True)
+        # Use inference_frame for model predictions
+        person_results = person_model.predict(inference_frame, conf=person_model_conf, iou=person_model_iou, device=device, half=use_half, verbose=True)
         person_boxes = []
         if person_results and person_results[0].boxes:
             person_boxes = [b.xyxy[0].cpu().numpy() for b in person_results[0].boxes if int(b.cls.cpu()) == 0]
 
-        results = main_model.predict(frame, conf=main_model_conf, iou=main_model_iou, device=device, half=use_half, verbose=True)
+        results = main_model.predict(inference_frame, conf=main_model_conf, iou=main_model_iou, device=device, half=use_half, verbose=True)
         boxes, class_ids, scores = [], [], []
         if results and results[0].boxes:
             boxes = [b.xyxy[0].cpu().numpy() for b in results[0].boxes]
@@ -105,11 +114,11 @@ def process_single_stream_cycle(
         logger.debug(f"[{sn}] Violations: {violation_list_for_send}")
 
         if global_config['draw']:
-            frame = draw_boxes(frame.copy(), viol_boxes_draw, viol_cids_draw, class_names, filtered_scores) 
+            display_frame = draw_boxes(inference_frame.copy(), viol_boxes_draw, viol_cids_draw, class_names, filtered_scores) 
         
         timers['last_inference_time'] = current_time
 
-        # Data Sending
+        # Data Sending - use original frame for server upload
         if current_time - timers['last_datasend_time'] >= global_config['datasend_interval']:
             if violation_occurred_for_send or global_config.get("send_data_even_if_no_violation", True):
                 data_payload = {
@@ -119,7 +128,13 @@ def process_single_stream_cycle(
                     "start_time": time_to_string(timers['last_datasend_time']),
                     "end_time": time_to_string(current_time)
                 }
-                img_name, img_bytes, img_type = mat_to_response(display_frame, max_width=global_config["frame_width"], jpeg_quality=global_config["frame_jpeg_quality"])
+                # Use separate dimensions and quality for server upload
+                send_width = global_config.get("frame_send_width", global_config.get("frame_width", 640))
+                send_height = global_config.get("frame_send_height", global_config.get("frame_height", 480))
+                send_quality = global_config.get("frame_send_jpeg_quality", global_config.get("frame_jpeg_quality", 85))
+                
+                # Use original_frame for server upload with send-specific settings
+                img_name, img_bytes, img_type = mat_to_response(original_frame, max_width=send_width, max_height=send_height, jpeg_quality=send_quality)
                 files = {"image": (img_name, img_bytes, img_type)}
 
                 if global_config.get('send_data', True):
@@ -132,10 +147,12 @@ def process_single_stream_cycle(
                 timers['last_datasend_time'] = current_time 
 
         if global_config['livestream'] and streamer:
-            streamer.updateFrame(frame)
+            # Use display_frame (resized) for livestream
+            streamer.updateFrame(display_frame)
 
         if global_config["show"]:
-            cv2.imshow(f"Output_{sn}", frame)
+            # Use display_frame (resized) for local display
+            cv2.imshow(f"Output_{sn}", display_frame)
             # cv2.waitKey(1) will be in the main loop
 
 
