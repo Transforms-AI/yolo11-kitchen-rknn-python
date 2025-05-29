@@ -3,6 +3,9 @@ import cv2
 import time
 import os
 import logging
+import socket
+from libraries.datasend import DataUploader
+from libraries.utils import time_to_string
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -30,12 +33,17 @@ class VideoCaptureAsync:
         _last_frame_time (float): Timestamp of the last grabbed frame (used for file playback timing).
         _frame_count (int): Total number of frames in the video (if applicable and determinable).
         _stop_event (threading.Event): Event to signal the thread to stop.
+        _heartbeat_config (dict): Configuration for heartbeat functionality.
+        _data_uploader (DataUploader): DataUploader instance for sending heartbeats.
+        _last_heartbeat_time (float): Timestamp of the last heartbeat sent.
+        _error_status (str): Current error status for heartbeat logging.
     """
 
     # Common video file extensions
     VIDEO_EXTENSIONS = {'.mp4', '.avi', '.mov', '.mkv', '.wmv', '.flv', '.webm'}
 
-    def __init__(self, src=0, width=640, height=480, driver=None, loop=False):
+    def __init__(self, src=0, width=640, height=480, driver=None, loop=False, 
+                 heartbeat_config=None):
         """
         Initializes the VideoCaptureAsync object.
 
@@ -45,6 +53,13 @@ class VideoCaptureAsync:
             height (int): The desired frame height.
             driver (int, optional): The backend API to use (e.g., cv2.CAP_DSHOW).
             loop (bool): Whether to loop the video *if* it's a file source.
+            heartbeat_config (dict, optional): Configuration for heartbeat functionality.
+                Expected keys:
+                - 'enabled' (bool): Whether to enable heartbeat functionality
+                - 'sn' (str): Serial number for identification
+                - 'heartbeat_url' (str): URL for sending heartbeats
+                - 'headers' (dict): Headers for heartbeat requests
+                - 'interval' (float): Heartbeat interval in seconds (default: 30)
         """
         self.src = src
         self.width = width
@@ -64,7 +79,62 @@ class VideoCaptureAsync:
         self._frame_count = 0
         self._stop_event = threading.Event()
 
+        # Heartbeat functionality
+        self._heartbeat_config = heartbeat_config or {}
+        self._data_uploader = None
+        self._last_heartbeat_time = 0
+        self._error_status = ""
+        
+        if self._heartbeat_config.get('enabled', False):
+            self._initialize_heartbeat()
+
         self._initialize_capture()
+
+    def _initialize_heartbeat(self):
+        """Initialize the heartbeat functionality."""
+        try:
+            heartbeat_url = self._heartbeat_config.get('heartbeat_url')
+            headers = self._heartbeat_config.get('headers', {})
+            
+            if heartbeat_url:
+                self._data_uploader = DataUploader(
+                    api_url=None,  # We only need heartbeat functionality
+                    heartbeat_url=heartbeat_url,
+                    headers=headers,
+                    print_response=False,
+                    debug=False
+                )
+                self._last_heartbeat_time = time.time() - self._heartbeat_config.get('interval', 30)
+                logging.info(f"Heartbeat functionality initialized for source: {self.src}")
+            else:
+                logging.warning(f"Heartbeat enabled but no heartbeat_url provided for source: {self.src}")
+        except Exception as e:
+            logging.error(f"Failed to initialize heartbeat for source {self.src}: {e}")
+            self._data_uploader = None
+
+    def _send_heartbeat_if_needed(self, force_send=False, error_message=""):
+        """Send heartbeat if interval has passed or if forced."""
+        if not self._data_uploader or not self._heartbeat_config.get('enabled', False):
+            return
+            
+        current_time = time.time()
+        heartbeat_interval = self._heartbeat_config.get('interval', 30)
+        
+        if force_send or (current_time - self._last_heartbeat_time >= heartbeat_interval):
+            try:
+                sn = self._heartbeat_config.get('sn', f"capture_{self.src}")
+                status_log = error_message if error_message else self._error_status or "Video capture operational"
+                
+                self._data_uploader.send_heartbeat(sn, time_to_string(current_time), status_log=status_log)
+                self._last_heartbeat_time = current_time
+                
+                if error_message:
+                    logging.info(f"[{sn}] Error heartbeat sent: {error_message}")
+                else:
+                    logging.debug(f"[{sn}] Regular heartbeat sent")
+                    
+            except Exception as e:
+                logging.error(f"Failed to send heartbeat for source {self.src}: {e}")
 
     def _check_if_file_source(self, source):
         """Checks if the source is likely a local video file."""
@@ -87,7 +157,10 @@ class VideoCaptureAsync:
                 self.cap = cv2.VideoCapture(self.src, self.driver)
 
             if not self.cap.isOpened():
-                raise ValueError(f"Could not open video source: {self.src}")
+                error_msg = f"Could not open video source: {self.src}"
+                self._error_status = error_msg
+                self._send_heartbeat_if_needed(force_send=True, error_message=error_msg)
+                raise ValueError(error_msg)
 
             self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, self.width)
             self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, self.height)
@@ -97,9 +170,12 @@ class VideoCaptureAsync:
             if fps is not None and fps > 0:
                 self._fps = fps
             else:
-                logging.warning(f"Could not determine FPS for source: {self.src}. "
-                                f"Defaulting to {self._fps} FPS. "
-                                f"Frame timing might be inaccurate for file sources.")
+                warning_msg = (f"Could not determine FPS for source: {self.src}. "
+                              f"Defaulting to {self._fps} FPS. "
+                              f"Frame timing might be inaccurate for file sources.")
+                logging.warning(warning_msg)
+                self._error_status = warning_msg
+                self._send_heartbeat_if_needed(force_send=True, error_message=warning_msg)
 
             # Get frame count only if it's identified as a file source
             if self._is_file_source:
@@ -111,9 +187,15 @@ class VideoCaptureAsync:
             else:
                 logging.info(f"Initialized stream/camera source: {self.src} (FPS: {self._fps:.2f})")
 
+            # Clear error status on successful initialization
+            self._error_status = ""
+
         except Exception as e:
+            error_msg = f"Failed to initialize video capture for {self.src}: {e}"
+            self._error_status = error_msg
+            self._send_heartbeat_if_needed(force_send=True, error_message=error_msg)
             self.release() # Ensure resources are cleaned up on initialization failure
-            raise RuntimeError(f"Failed to initialize video capture for {self.src}: {e}") from e
+            raise RuntimeError(error_msg) from e
 
     def get(self, propId):
         """
@@ -160,7 +242,10 @@ class VideoCaptureAsync:
             return self
 
         if not self.cap or not self.cap.isOpened():
-            logging.error("Capture device not initialized or already released. Cannot start.")
+            error_msg = "Capture device not initialized or already released. Cannot start."
+            logging.error(error_msg)
+            self._error_status = error_msg
+            self._send_heartbeat_if_needed(force_send=True, error_message=error_msg)
             return self
 
         # Update loop setting if provided and applicable
@@ -185,7 +270,10 @@ class VideoCaptureAsync:
 
         while not self._stop_event.is_set():
             if not self.cap or not self.cap.isOpened():
-                logging.error(f"Capture source {self.src} closed unexpectedly. Stopping thread.")
+                error_msg = f"Capture source {self.src} closed unexpectedly. Stopping thread."
+                logging.error(error_msg)
+                self._error_status = error_msg
+                self._send_heartbeat_if_needed(force_send=True, error_message=error_msg)
                 break
 
             grabbed = False
@@ -209,7 +297,10 @@ class VideoCaptureAsync:
                                 if grabbed:
                                      self._last_frame_time = time.monotonic() # Reset timer only if read succeeds
                                 else:
-                                     logging.warning(f"Failed to read frame after looping {self.src}")
+                                     error_msg = f"Failed to read frame after looping {self.src}"
+                                     logging.warning(error_msg)
+                                     self._error_status = error_msg
+                                     self._send_heartbeat_if_needed(error_message=error_msg)
                                      # Keep grabbed as False, loop will try again or exit
                             else:
                                 # End of file and not looping, stop reading
@@ -236,7 +327,10 @@ class VideoCaptureAsync:
                     grabbed, frame = self.cap.read()
                     if not grabbed:
                         # Stream might have ended or encountered an error
-                        logging.warning(f"Failed to grab frame from stream/camera: {self.src}. Retrying...")
+                        error_msg = f"Failed to grab frame from stream/camera: {self.src}. Retrying..."
+                        logging.warning(error_msg)
+                        self._error_status = error_msg
+                        self._send_heartbeat_if_needed(error_message=error_msg)
                         # Add a small delay to prevent tight loop on persistent errors
                         time.sleep(0.01)
                         # Keep trying unless stopped
@@ -246,8 +340,20 @@ class VideoCaptureAsync:
                         self._grabbed = grabbed
                         self._frame = frame
 
+                # Send regular heartbeat if needed (when no errors)
+                if grabbed and not self._error_status:
+                    self._send_heartbeat_if_needed()
+                
+                # Clear error status if we successfully grabbed a frame
+                if grabbed and self._error_status:
+                    self._error_status = ""
+                    self._send_heartbeat_if_needed(force_send=True, error_message="Video capture recovered")
+
             except cv2.error as e:
-                logging.error(f"OpenCV error during capture from {self.src}: {e}")
+                error_msg = f"OpenCV error during capture from {self.src}: {e}"
+                logging.error(error_msg)
+                self._error_status = error_msg
+                self._send_heartbeat_if_needed(force_send=True, error_message=error_msg)
                 # Decide how to handle: maybe stop, maybe just log and continue
                 # For now, log and set grabbed=False, let the loop continue/retry
                 with self._read_lock:
@@ -255,7 +361,10 @@ class VideoCaptureAsync:
                     self._frame = None
                 time.sleep(0.1) # Prevent spamming logs on persistent error
             except Exception as e:
-                logging.exception(f"Unexpected error in capture thread for {self.src}: {e}")
+                error_msg = f"Unexpected error in capture thread for {self.src}: {e}"
+                logging.exception(error_msg)
+                self._error_status = error_msg
+                self._send_heartbeat_if_needed(force_send=True, error_message=error_msg)
                 with self._read_lock:
                     self._grabbed = False
                     self._frame = None
@@ -284,7 +393,10 @@ class VideoCaptureAsync:
             start_time = time.monotonic()
             while not self._grabbed and self.started:
                 if time.monotonic() - start_time > timeout:
-                    logging.warning(f"Timeout waiting for first frame from {self.src}")
+                    error_msg = f"Timeout waiting for first frame from {self.src}"
+                    logging.warning(error_msg)
+                    self._error_status = error_msg
+                    self._send_heartbeat_if_needed(error_message=error_msg)
                     return False, None
                 time.sleep(0.005) # Small sleep to yield execution
 
@@ -321,7 +433,18 @@ class VideoCaptureAsync:
                 self.cap.release()
                 logging.info(f"Released video capture device for {self.src}")
             except Exception as e:
-                logging.error(f"Error releasing capture device for {self.src}: {e}")
+                error_msg = f"Error releasing capture device for {self.src}: {e}"
+                logging.error(error_msg)
+                self._error_status = error_msg
+                self._send_heartbeat_if_needed(force_send=True, error_message=error_msg)
+        
+        # Shutdown data uploader if initialized
+        if self._data_uploader:
+            try:
+                self._data_uploader.shutdown(wait=False)
+            except Exception as e:
+                logging.error(f"Error shutting down data uploader for {self.src}: {e}")
+        
         self.cap = None
         self.started = False # Ensure started is False after release
 

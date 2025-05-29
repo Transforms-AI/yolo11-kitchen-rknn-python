@@ -159,9 +159,18 @@ def sequential_multi_stream_loop(global_config, main_model, class_names, person_
         is_looping = s_conf.get('local_video', False)
 
         # Initialize VideoCaptureAsync; it handles opening internally.
+        heartbeat_config = {
+            'enabled': True,
+            'sn': sn,
+            'heartbeat_url': global_config.get('heartbeat_url'),
+            'headers': {"X-Secret-Key": global_config.get("X-Secret-Key", "")},
+            'interval': global_config.get("heartbeat_interval", 30)
+        }
+        
         cap = VideoCaptureAsync(src=video_source_uri, loop=is_looping,
                                 width=s_conf.get("frame_width", 640), 
-                                height=s_conf.get("frame_height", 480))
+                                height=s_conf.get("frame_height", 480),
+                                heartbeat_config=heartbeat_config)
         cap.start() 
 
         resolved_local_ip = global_config['local_ip']
