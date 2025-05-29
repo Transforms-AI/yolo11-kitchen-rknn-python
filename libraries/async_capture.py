@@ -195,7 +195,7 @@ class VideoCaptureAsync:
             self._error_status = error_msg
             self._send_heartbeat_if_needed(force_send=True, error_message=error_msg)
             self.release() # Ensure resources are cleaned up on initialization failure
-            raise RuntimeError(error_msg) from e
+            #raise RuntimeError(error_msg) from e
 
     def get(self, propId):
         """
