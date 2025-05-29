@@ -104,7 +104,7 @@ class VideoCaptureAsync:
                     print_response=False,
                     debug=False
                 )
-                self._last_heartbeat_time = time.time() - self._heartbeat_config.get('interval', 30)
+                self._last_heartbeat_time = 0
                 logging.info(f"Heartbeat functionality initialized for source: {self.src}")
             else:
                 logging.warning(f"Heartbeat enabled but no heartbeat_url provided for source: {self.src}")
