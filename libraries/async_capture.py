@@ -126,7 +126,7 @@ class VideoCaptureAsync:
                 status_log = error_message if error_message else self._error_status or "Video capture operational"
                 
                 self._data_uploader.send_heartbeat(sn, time_to_string(current_time), status_log=status_log)
-                self._last_heartbeat_time = current_time
+                self._last_heartbeat_time = time.time()
                 
                 if error_message:
                     logging.info(f"[{sn}] Error heartbeat sent: {error_message}")
@@ -159,7 +159,7 @@ class VideoCaptureAsync:
             if not self.cap.isOpened():
                 error_msg = f"Could not open video source: {self.src}"
                 self._error_status = error_msg
-                self._send_heartbeat_if_needed(force_send=True, error_message=error_msg)
+                # self._send_heartbeat_if_needed(force_send=True, error_message=error_msg)
                 raise ValueError(error_msg)
 
             # self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, self.width)
@@ -175,7 +175,7 @@ class VideoCaptureAsync:
                               f"Frame timing might be inaccurate for file sources.")
                 logging.warning(warning_msg)
                 self._error_status = warning_msg
-                self._send_heartbeat_if_needed(force_send=True, error_message=warning_msg)
+                self._send_heartbeat_if_needed(force_send=False, error_message=warning_msg)
 
             # Get frame count only if it's identified as a file source
             if self._is_file_source:
@@ -191,7 +191,7 @@ class VideoCaptureAsync:
             self._error_status = ""
 
         except Exception as e:
-            error_msg = f"Failed to initialize video capture for {self.src}: {e}"
+            error_msg = f"[ERROR] {e}"
             self._error_status = error_msg
             self._send_heartbeat_if_needed(force_send=True, error_message=error_msg)
             time.sleep(5)
@@ -246,7 +246,7 @@ class VideoCaptureAsync:
             error_msg = "Capture device not initialized or already released. Cannot start."
             logging.error(error_msg)
             self._error_status = error_msg
-            self._send_heartbeat_if_needed(force_send=True, error_message=error_msg)
+            self._send_heartbeat_if_needed(force_send=False, error_message=error_msg)
             return self
 
         # Update loop setting if provided and applicable
@@ -354,7 +354,7 @@ class VideoCaptureAsync:
                 error_msg = f"OpenCV error during capture from {self.src}: {e}"
                 logging.error(error_msg)
                 self._error_status = error_msg
-                self._send_heartbeat_if_needed(force_send=True, error_message=error_msg)
+                self._send_heartbeat_if_needed(force_send=False, error_message=error_msg)
                 # Decide how to handle: maybe stop, maybe just log and continue
                 # For now, log and set grabbed=False, let the loop continue/retry
                 with self._read_lock:
@@ -365,7 +365,7 @@ class VideoCaptureAsync:
                 error_msg = f"Unexpected error in capture thread for {self.src}: {e}"
                 logging.exception(error_msg)
                 self._error_status = error_msg
-                self._send_heartbeat_if_needed(force_send=True, error_message=error_msg)
+                self._send_heartbeat_if_needed(force_send=False, error_message=error_msg)
                 with self._read_lock:
                     self._grabbed = False
                     self._frame = None
@@ -437,7 +437,7 @@ class VideoCaptureAsync:
                 error_msg = f"Error releasing capture device for {self.src}: {e}"
                 logging.error(error_msg)
                 self._error_status = error_msg
-                self._send_heartbeat_if_needed(force_send=True, error_message=error_msg)
+                # self._send_heartbeat_if_needed(force_send=False, error_message=error_msg)
         
         # Shutdown data uploader if initialized
         if self._data_uploader:
