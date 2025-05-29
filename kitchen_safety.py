@@ -300,7 +300,7 @@ def sequential_multi_stream_loop(global_config, main_model, class_names, person_
                         send_heartbeat_if_needed()
                             
                     else: # Not grabbed and not started (or thread died)
-                        error_msg = f"Capture thread not running or failed to grab frame."
+                        error_msg = f"Error: Failed to read frame from {config['video_source']}. Capture thread may have died."
                         logger.error(f"[{sn}] {error_msg}")
                         
                         state['is_in_error_state'] = True
