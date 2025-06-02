@@ -8,7 +8,7 @@ JPEG_DEFAULT_QUALITY = 65
 
 def time_to_string(input):
     time_tuple = time.gmtime(input)
-    return time.strftime("%Y-%m-%dT%H:%M:%S", time_tuple)
+    return time.strftime("%Y-%m-%dT%H:%M:%SZ", time_tuple)
 
 def resize_frame(frame, max_width=UPLOAD_IMAGE_MAX_WIDTH_DEFAULT):
     """
