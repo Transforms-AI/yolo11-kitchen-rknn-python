@@ -48,21 +48,15 @@ def process_single_stream_cycle(
     # Keep original frame for server upload
     original_frame = frame.copy()
     
-    # Create resized frame for inference and display
-    inference_width = stream_config.get("frame_width", 640)
-    inference_height = stream_config.get("frame_height", 480)
-    inference_frame = cv2.resize(frame, (inference_width, inference_height))
+    status_text = f"Processing Frame: {stream_state['frame_count']}, Time: {time_to_string(current_time)}"
 
     # Heartbeat is independent of frame processing success for this cycle
     if current_time - timers['last_heartbeat_time'] >= global_config["heartbeat_interval"]:
-        # Check if there's an error status to send
-        error_status = stream_state.get('error_status', '')
-        data_uploader.send_heartbeat(sn, time_to_string(current_time), status_log=error_status)
+        data_uploader.send_heartbeat(sn, time_to_string(current_time), status_log=status_text)
         timers['last_heartbeat_time'] = current_time
-        logger.debug(f"[{sn}] Heartbeat sent with status: {error_status}")
 
     # Default display frame is the resized frame
-    display_frame = inference_frame.copy()
+    display_frame = original_frame.copy()
     violation_list_for_send = []
     violation_occurred_for_send = False
 
@@ -75,12 +69,12 @@ def process_single_stream_cycle(
         main_model_iou = stream_config.get('main_model_iou', 0.2)
 
         # Use inference_frame for model predictions
-        person_results = person_model.predict(inference_frame, conf=person_model_conf, iou=person_model_iou, device=device, half=use_half, verbose=True)
+        person_results = person_model.predict(original_frame, imgsz = stream_config.get("frame_width", 640), conf=person_model_conf, iou=person_model_iou, device=device, half=use_half, verbose=True)
         person_boxes = []
         if person_results and person_results[0].boxes:
             person_boxes = [b.xyxy[0].cpu().numpy() for b in person_results[0].boxes if int(b.cls.cpu()) == 0]
 
-        results = main_model.predict(inference_frame, conf=main_model_conf, iou=main_model_iou, device=device, half=use_half, verbose=True)
+        results = main_model.predict(original_frame, imgsz = stream_config.get("frame_width", 640), conf=main_model_conf, iou=main_model_iou, device=device, half=use_half, verbose=True)
         boxes, class_ids, scores = [], [], []
         if results and results[0].boxes:
             boxes = [b.xyxy[0].cpu().numpy() for b in results[0].boxes]
@@ -114,7 +108,7 @@ def process_single_stream_cycle(
         logger.debug(f"[{sn}] Violations: {violation_list_for_send}")
 
         if global_config['draw']:
-            display_frame = draw_boxes(inference_frame.copy(), viol_boxes_draw, viol_cids_draw, class_names, filtered_scores) 
+            display_frame = draw_boxes(display_frame, viol_boxes_draw, viol_cids_draw, class_names, filtered_scores) 
         
         timers['last_inference_time'] = current_time
 
@@ -130,7 +124,6 @@ def process_single_stream_cycle(
                 }
                 # Use separate dimensions and quality for server upload
                 send_width = global_config.get("frame_send_width", global_config.get("frame_width", 640))
-                send_height = global_config.get("frame_send_height", global_config.get("frame_height", 480))
                 send_quality = global_config.get("frame_send_jpeg_quality", global_config.get("frame_jpeg_quality", 85))
                 
                 # Use original_frame for server upload with send-specific settings
@@ -164,8 +157,13 @@ def sequential_multi_stream_loop(global_config, main_model, class_names, person_
 
     stream_states = {}
     data_uploader = DataUploader(
-        global_config['data_send_url'], global_config['heartbeat_url'],
-        {"X-Secret-Key": global_config["X-Secret-Key"]}
+        global_config['data_send_url'], 
+        global_config['heartbeat_url'],
+        {"X-Secret-Key": global_config["X-Secret-Key"]},
+        max_retries=config.get("max_send_retries", 5),
+        retry_delay=config.get("send_retry_delay", 5),
+        timeout=config.get("send_timeout", 30),
+        debug=True
     )
 
     for s_conf in stream_configs:
@@ -184,20 +182,20 @@ def sequential_multi_stream_loop(global_config, main_model, class_names, person_
             'interval': global_config.get("heartbeat_interval", 30)
         }
         
-        cap = VideoCaptureAsync(src=video_source_uri, loop=is_looping,
-                                width=s_conf.get("frame_width", 640), 
-                                height=s_conf.get("frame_height", 480),
-                                heartbeat_config=heartbeat_config)
+        cap = VideoCaptureAsync(src=video_source_uri, 
+                                loop=is_looping,
+                                heartbeat_config=heartbeat_config,
+                                auto_restart_on_fail=True)
         cap.start() 
-
-        resolved_local_ip = global_config['local_ip']
-        if resolved_local_ip == 'auto':
-            try: resolved_local_ip = socket.gethostbyname(socket.gethostname())
-            except socket.gaierror: resolved_local_ip = "127.0.0.1"; logger.warning(f"[{sn}] Auto IP failed.")
 
         streamer_obj = None
         if global_config['livestream']:
-            streamer_obj = StreamPublisher(f"live_{sn}", host=resolved_local_ip)
+            streamer_obj = StreamPublisher(
+                f"live_{sn}",
+                host=global_config.get('local_ip', '127.0.0.1'),
+                jpeg_quality=70, 
+                target_width=1600
+            )
             streamer_obj.start_streaming()
 
         stream_states[sn] = {
@@ -206,145 +204,33 @@ def sequential_multi_stream_loop(global_config, main_model, class_names, person_
                 'last_inference_time': time.time() - global_config["inference_interval"] * 2,
                 'last_datasend_time': time.time() - global_config["datasend_interval"] * 2,
                 'last_heartbeat_time': time.time() - global_config["heartbeat_interval"] * 2,
-                'last_stream_retry_time': 0  # Track when we last attempted to retry stream
-            },
-            'local_ip_resolved': resolved_local_ip,
-            'last_successful_read': time.time(), # For tracking if a stream is dead
-            'error_status': '',  # Store current error status
-            'is_in_error_state': False  # Flag to track if stream is in error state
+            }
         }
 
     # Main Sequential Loop
     try:
-        while True:
-            active_stream_found_this_cycle = False
-            current_time = time.time()
+        while True:            
             
             for sn, state in stream_states.items():
                 cap_obj = state['cap']
-                
-                # Handle heartbeat for error states or normal operation
-                def send_heartbeat_if_needed(error_msg=""):
-                    if current_time - state['timers']['last_heartbeat_time'] >= global_config["heartbeat_interval"]:
-                        status_log = error_msg if error_msg else state.get('error_status', '')
-                        data_uploader.send_heartbeat(sn, time_to_string(current_time), status_log=status_log)
-                        state['timers']['last_heartbeat_time'] = current_time
-                        logger.debug(f"[{sn}] Heartbeat sent with status: {status_log}")
-                
-                # Check if we're in error state and need to retry after 30 seconds
-                if state['is_in_error_state'] and (current_time - state['timers']['last_stream_retry_time']) >= 30:
-                    logger.info(f"[{sn}] Attempting to recover from error state after 30 seconds...")
-                    try:
-                        # Release old capture
-                        if state['cap']:
-                            state['cap'].release()
-                        
-                        # Create new capture
-                        video_source_uri = state['config'].get("local_video_source") if state['config'].get('local_video') else state['config']["video_source"]
-                        is_looping = state['config'].get('local_video', False)
-                        new_cap = VideoCaptureAsync(src=video_source_uri, loop=is_looping,
-                                                    width=state['config'].get("frame_width", 640),
-                                                    height=state['config'].get("frame_height", 480))
-                        new_cap.start()
-                        state['cap'] = new_cap
-                        cap_obj = new_cap
-                        
-                        # Reset retry timer
-                        state['timers']['last_stream_retry_time'] = current_time
-                        logger.info(f"[{sn}] Stream recovery attempt completed.")
-                        
-                    except Exception as e:
-                        error_msg = f"Stream recovery failed: {str(e)}"
-                        logger.error(f"[{sn}] {error_msg}")
-                        state['error_status'] = error_msg
-                        state['timers']['last_stream_retry_time'] = current_time
-                        
-                        # Send heartbeat immediately for recovery failure
-                        send_heartbeat_if_needed(error_msg)
-                        continue
-                
                 try:
                     grabbed, frame = cap_obj.read(wait_for_frame=False, timeout=0.01)
                     
                     if grabbed and frame is not None:
-                        active_stream_found_this_cycle = True
-                        state['last_successful_read'] = current_time
                         state['frame_count'] += 1
-                        
-                        # Clear error state if we successfully got a frame
-                        if state['is_in_error_state']:
-                            state['is_in_error_state'] = False
-                            state['error_status'] = 'Stream recovered successfully'
-                            logger.info(f"[{sn}] Stream recovered successfully after error state.")
-                        else:
-                            state['error_status'] = ''  # Clear any previous error status
                         
                         process_single_stream_cycle(
                             frame, state, state['config'], global_config,
                             main_model, class_names, person_model, device, data_uploader
                         )
-                        
-                    elif cap_obj.started: # Still started but no frame
-                        # Check if it's been too long since a successful read
-                        time_since_last_read = current_time - state['last_successful_read']
-                        if time_since_last_read > global_config.get("stream_read_timeout", 30):
-                            error_msg = f"No frame read for {time_since_last_read:.1f}s. Stream timeout."
-                            logger.warning(f"[{sn}] {error_msg}")
-                            
-                            if not state['is_in_error_state']:
-                                state['is_in_error_state'] = True
-                                state['error_status'] = error_msg
-                                state['timers']['last_stream_retry_time'] = current_time
-                        
-                        # Send heartbeat with current error status
-                        send_heartbeat_if_needed()
-                            
-                    else: # Not grabbed and not started (or thread died)
-                        error_msg = f"Error: Failed to read frame from {config['video_source']}. Capture thread may have died."
-                        logger.error(f"[{sn}] {error_msg}")
-                        
-                        state['is_in_error_state'] = True
-                        state['error_status'] = error_msg
-                        state['timers']['last_stream_retry_time'] = current_time
-                        
-                        # Send heartbeat immediately for capture failure
-                        send_heartbeat_if_needed(error_msg)
-                        
-                        # Attempt immediate restart
-                        try:
-                            state['cap'].release()
-                            video_source_uri = state['config'].get("local_video_source") if state['config'].get('local_video') else state['config']["video_source"]
-                            is_looping = state['config'].get('local_video', False)
-                            new_cap = VideoCaptureAsync(src=video_source_uri, loop=is_looping,
-                                                        width=state['config'].get("frame_width", 640),
-                                                        height=state['config'].get("frame_height", 480))
-                            new_cap.start()
-                            state['cap'] = new_cap
-                            state['last_successful_read'] = current_time # Reset timer
-                            logger.info(f"[{sn}] Attempted immediate restart of VideoCaptureAsync.")
-                        except Exception as restart_error:
-                            restart_error_msg = f"Failed to restart capture: {str(restart_error)}"
-                            logger.error(f"[{sn}] {restart_error_msg}")
-                            state['error_status'] = f"{error_msg} | {restart_error_msg}"
 
                 except Exception as e:
-                    error_msg = f"Exception during frame read: {str(e)}"
-                    logger.error(f"[{sn}] {error_msg}", exc_info=True)
-                    
-                    state['is_in_error_state'] = True
-                    state['error_status'] = error_msg
-                    state['timers']['last_stream_retry_time'] = current_time
-                    
-                    # Send heartbeat immediately for exception
-                    send_heartbeat_if_needed(error_msg)
-
-            if not active_stream_found_this_cycle and not stream_states:
-                 logger.info("No streams configured or all failed critically. Exiting.")
-                 break
-            if not active_stream_found_this_cycle and stream_states:
-                # All streams failed to provide a frame in this cycle.
-                logger.debug("No active frames from any stream in this cycle. Pausing briefly.")
-                time.sleep(0.1)
+                    error_msg = f"Exception during frame processing: {str(e)}"
+                    data_uploader.send_heartbeat(
+                        config['sn'],
+                        time_to_string(time_to_string(time.time())),
+                        status_log=error_msg
+                    )
 
             if global_config["show"]:
                 key = cv2.waitKey(1) & 0xFF
@@ -361,8 +247,8 @@ def sequential_multi_stream_loop(global_config, main_model, class_names, person_
         for sn, state in stream_states.items():
             if state.get('cap'): state['cap'].release()
             if state.get('streamer'): state['streamer'].stop_streaming()
-            if global_config["show"]: cv2.destroyWindow(f"Output_{sn}")
         if global_config["show"]: cv2.destroyAllWindows()
+        data_uploader.shutdown()
         logger.info("Application cleanup finished.")
 
 
