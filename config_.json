@@ -7,7 +7,7 @@
             "local_video_source" : "demo/kitchen-test.mp4"
         }
     ],
-    "model" : "models/kitchen-10jan-yolo11n_rknn_model",
+    "model" : "models/kitchen-detection-model",
     "person_model": "models/person-april21-yolo11n_rknn_model",
     "target" : "rk3588",
     "multirun_cooldown" : 10,

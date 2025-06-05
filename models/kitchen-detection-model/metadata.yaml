@@ -1,0 +1,29 @@
+description: Ultralytics YOLO11n model trained on /home/islam/tanim/hajj-training-pipelines/kitchen/kitchen-dataset-3june/data.yaml
+author: Ultralytics
+date: '2025-06-06T01:31:21.447259'
+version: 8.3.149
+license: AGPL-3.0 License (https://ultralytics.com/license)
+docs: https://docs.ultralytics.com
+stride: 32
+task: detect
+batch: 1
+imgsz:
+- 640
+- 640
+names:
+  0: hat
+  1: no_hat
+  2: mask
+  3: no_mask
+  4: gloves
+  5: no_gloves
+  6: food_uncover
+  7: pilgrim
+  8: no_pilgrim
+  9: waste
+  10: incorrect_mask
+  11: food_processing
+args:
+  batch: 1
+  name: rk3588
+channels: 3
