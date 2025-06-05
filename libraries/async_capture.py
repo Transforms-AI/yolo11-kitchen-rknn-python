@@ -7,14 +7,13 @@ from libraries.datasend import DataUploader
 from libraries.utils import time_to_string 
 
 # --- Information About Script ---
-__author__ = "TransformsAI"
+__name__ = "VideoCaptureAsync with Heartbeat"
 __version__ = "2.5.1" 
-__status__ = "Production"
-__last_updated__ = "2025-06-03" 
+__author__ = "TransformsAI"
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - [%(threadName)s] - %(message)s')
-logging.info(f"Script Version: {__version__}, Status: {__status__}, Last Updated: {__last_updated__}")
+logging.info(f"Script Version: {__version__}")
 
 class VideoCaptureAsync:
     """

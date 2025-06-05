@@ -38,7 +38,7 @@ def resize_frame(frame, max_width=UPLOAD_IMAGE_MAX_WIDTH_DEFAULT):
         # No resizing needed
         return frame
 
-def mat_to_response(frame, max_width=UPLOAD_IMAGE_MAX_WIDTH_DEFAULT, jpeg_quality=JPEG_DEFAULT_QUALITY, filename="image.jpg"):
+def mat_to_response(frame, max_width=UPLOAD_IMAGE_MAX_WIDTH_DEFAULT, jpeg_quality=JPEG_DEFAULT_QUALITY, filename="image.jpg", timestamp=None):
     """
     Resizes (if necessary) and encodes an OpenCV frame (NumPy array)
     to JPEG bytes in memory with a specified quality.
@@ -47,6 +47,7 @@ def mat_to_response(frame, max_width=UPLOAD_IMAGE_MAX_WIDTH_DEFAULT, jpeg_qualit
         frame (np.ndarray): The image frame to encode.
         max_width (int): Maximum width for resizing before encoding.
         jpeg_quality (int): JPEG compression quality (0-100).
+        timestamp (float, optional): Timestamp to be added to the image. Current time if None.
 
     Returns:
         tuple | None: A tuple suitable for the 'files' parameter in requests
@@ -54,7 +55,7 @@ def mat_to_response(frame, max_width=UPLOAD_IMAGE_MAX_WIDTH_DEFAULT, jpeg_qualit
     """
     try:
         # 0. Replate timestamp
-        frame = hide_camera_timestamp_and_add_current_time(frame)
+        frame = hide_camera_timestamp_and_add_current_time(frame, timestamp=timestamp)
         
         # 1. Resize the frame
         resized_frame = resize_frame(frame, max_width)
@@ -88,7 +89,8 @@ def hide_camera_timestamp_and_add_current_time(
     new_ts_font_scale=None,
     new_ts_font_color=(0, 0, 0),
     new_ts_font_thickness=1,
-    new_ts_padding_ratio=0.1 
+    new_ts_padding_ratio=0.1,
+    timestamp=None 
 ):
     """
     Hides a region on a frame (defined by pixel coordinates or ratios)
@@ -137,7 +139,7 @@ def hide_camera_timestamp_and_add_current_time(
                   hide_rect_color, -1)
 
     # 3. Get current time and format it
-    current_unix_time = time.time()
+    current_unix_time = time.time() if timestamp is None else timestamp
     dt_object = datetime.datetime.fromtimestamp(current_unix_time)
     time_string = dt_object.strftime("%Y-%m-%d %H:%M:%S")
 

@@ -10,9 +10,12 @@ import time
 import torch
 from ultralytics import YOLO
 import logging
-import socket # For local_ip resolution
 
-logger = logging.getLogger("kitchen_safety_sequential")
+# --- Script Information ---
+__version__ = "2.15"
+__author__ = "TransformsAI"
+
+logger = logging.getLogger("kitchen_safety")
 
 
 def calculate_iou(box1, box2):
@@ -26,7 +29,7 @@ def calculate_iou(box1, box2):
 
 
 def process_single_stream_cycle(
-    frame: any, # The frame already read from VideoCaptureAsync (original size)
+    frame: any, 
     stream_state: dict,
     stream_config: dict,
     global_config: dict,
@@ -95,7 +98,7 @@ def process_single_stream_cycle(
         logger.info(f"[{sn}] Inferred: {inferred_names}")
 
         # violation_cfg = [1, 3, 5, 6, 9, 10]
-        violation_cfg = [1, 3, 5, 6, 7, 9, 10]
+        violation_cfg = [1, 3, 5, 6, 7, 9]
         current_violations, viol_boxes_draw, viol_cids_draw = [], [], []
         for i, cid in enumerate(filtered_class_ids):
             if cid in violation_cfg and cid in class_names:
@@ -127,7 +130,7 @@ def process_single_stream_cycle(
                 send_quality = global_config.get("frame_send_jpeg_quality", global_config.get("frame_jpeg_quality", 85))
                 
                 # Use original_frame for server upload with send-specific settings
-                img_name, img_bytes, img_type = mat_to_response(original_frame, max_width=send_width, jpeg_quality=send_quality)
+                img_name, img_bytes, img_type = mat_to_response(original_frame, max_width=send_width, jpeg_quality=send_quality, timestamp=current_time)
                 files = {"image": (img_name, img_bytes, img_type)}
 
                 if global_config.get('send_data', True):
@@ -163,7 +166,8 @@ def sequential_multi_stream_loop(global_config, main_model, class_names, person_
         max_retries=config.get("max_send_retries", 5),
         retry_delay=config.get("send_retry_delay", 5),
         timeout=config.get("send_timeout", 30),
-        debug=True
+        debug=True,
+        project_version= __version__,
     )
 
     for s_conf in stream_configs:
@@ -253,21 +257,20 @@ def sequential_multi_stream_loop(global_config, main_model, class_names, person_
 
 
 if __name__ == '__main__':
-    
+
     if len(sys.argv) < 2:
-        print("Usage: python guard_detection.py <config_path>...")
+        print("Usage: python kitchen_safety.py <config_path>...")
         sys.exit(1)
 
     paths = sys.argv[1:]
     print(f"Received paths: {paths}")
 
     config_path = paths[0]
-    # detector = GeneralSystem(config_path)
     try:
         with open(config_path, "r") as f:
             config = json.load(f)
     except Exception as e:
-        logging.basicConfig(level=logging.ERROR) # Basic for this error
+        logging.basicConfig(level=logging.ERROR)
         logger = logging.getLogger("setup_error")
         logger.critical(f"Failed to load/parse {config_path}: {e}")
         exit(1)
@@ -285,8 +288,8 @@ if __name__ == '__main__':
     logger.info(f"Logging level set to {log_level_str}.")
 
     # violation_cfg = [1, 3, 5, 6, 7, 9, 10]
-    #labels = ['hat','no_hats', 'mask','no_masks','gloves','no_gloves','food_uncovered','pilgrim','no_pilgrim','garbage','incorrect_mask','food_processing']
-    labels = ['hat','no_hats', 'mask','no_masks','gloves','no_gloves','food_uncovered','uniform_missing','no_pilgrim','garbage','no_masks','food_processing']
+    # labels = ['hat','no_hats', 'mask','no_masks','gloves','no_gloves','food_uncovered','pilgrim','no_pilgrim','garbage','incorrect_mask','food_processing']
+    labels = ['hat','no_hats', 'mask','no_masks','gloves','no_gloves','food_uncovered','uniform_missing','no_pilgrim','garbage','no_masks','food_processing'] # incorrect mask being used as no_mask
     class_names_map = {i: label for i, label in enumerate(labels)}
     device = "cuda" if torch.cuda.is_available() else "cpu"
     logger.info(f"Using device: {device}")
@@ -298,9 +301,5 @@ if __name__ == '__main__':
     except Exception as e:
         logger.critical(f"Failed to load YOLO models: {e}", exc_info=True)
         exit(1)
-
-    # Add a stream_read_timeout to global config if not present, for demonstration
-    if 'stream_read_timeout' not in config:
-        config['stream_read_timeout'] = 30 # seconds
 
     sequential_multi_stream_loop(config, main_model, class_names_map, person_model, device)

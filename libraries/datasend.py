@@ -1,18 +1,21 @@
-import csv
 import requests
 import time
 import os
 import socket
 import fcntl
 import struct
-import threading  # threading.RLock will be used
+import threading  
 import random
 from concurrent.futures import ThreadPoolExecutor
 import getpass
 import json
-import io  # For BytesIO and type checking
-import uuid  # For unique filenames
+import io  
+import uuid  
 
+# --- Information About Script ---
+__name__ = "DataUploader with Caching"
+__version__ = "3.0.2" 
+__author__ = "TransformsAI"
 
 class DataUploader:
     def __init__(self, api_url,
@@ -30,6 +33,7 @@ class DataUploader:
                  max_cache_items=300,       # Max number of items in cache
                  max_cache_age_seconds=24*60*60,    # Max age of a cache item (1 day)
                  source="Frame Processor",  # Default source for metadata
+                 project_version=None
                  ):
         """
         Initializes the DataUploader.
@@ -54,6 +58,7 @@ class DataUploader:
                                    Older items are pruned if the limit is exceeded. 0 for no limit.
             max_cache_age_seconds (int): Maximum age in seconds for an item in the cache.
                                          Older items are pruned. 0 for no limit.
+            project_version (str): Version of the project using this uploader.
         """
         self.api_url = api_url
         self.heartbeat_url = heartbeat_url
@@ -72,6 +77,7 @@ class DataUploader:
             self.os_username = os.getlogin()
         except OSError:
             self.os_username = getpass.getuser()
+        self.project_version = project_version
 
         # Initialize cache-related attributes
         # Determine if caching should be enabled
@@ -844,7 +850,8 @@ class DataUploader:
         data = {
             "sn": sn, "mac_address": self.mac_address, "ip_address": self.ip_address,
             "hw_platform": "opi", "host_name": f"{self.os_username}@{self.hostname}",
-            "status_log": status_log, "time": timestamp
+            "status_log": status_log, "time": timestamp,
+            "version": self.project_version
         }
         if self.debug:
             print(f"[INFO] Preparing heartbeat: SN={sn}, Time={timestamp}")
