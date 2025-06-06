@@ -175,7 +175,6 @@ def sequential_multi_stream_loop(global_config, main_model, class_names, person_
         logger.info(f"[{sn}] Initializing...")
         
         video_source_uri = s_conf.get("local_video_source") if s_conf.get('local_video') else s_conf["video_source"]
-        is_looping = s_conf.get('local_video', False)
 
         # Initialize VideoCaptureAsync; it handles opening internally.
         heartbeat_config = {
@@ -193,7 +192,6 @@ def sequential_multi_stream_loop(global_config, main_model, class_names, person_
         }
         
         cap = VideoCaptureAsync(src=video_source_uri, 
-                                loop=is_looping,
                                 heartbeat_config=heartbeat_config,
                                 auto_restart_on_fail=True)
         cap.start() 
