@@ -8,7 +8,7 @@ from libraries.utils import time_to_string
 
 # --- Information About Script ---
 __name__ = "VideoCaptureAsync with Heartbeat"
-__version__ = "2.5.1" 
+__version__ = "2.5.2" 
 __author__ = "TransformsAI"
 
 # Configure logging
@@ -70,21 +70,12 @@ class VideoCaptureAsync:
 
     def _initialize_heartbeat(self):
         try:
-            heartbeat_url = self._heartbeat_config.get('heartbeat_url')
-            headers = self._heartbeat_config.get('headers', {})
-            if heartbeat_url:
-                self._data_uploader = DataUploader(
-                    api_url=None, 
-                    heartbeat_url=heartbeat_url, 
-                    headers=headers,
-                    debug=True,
-                    max_workers=2,
-                    source="Video Capture"
-                )
-                self._last_heartbeat_time = 0
-                logging.info(f"[{self.src}] Heartbeat functionality initialized.")
-            else:
-                logging.warning(f"[{self.src}] Heartbeat enabled but no heartbeat_url provided.")
+            uploader_config = self._heartbeat_config.get('uploader_config', {})
+            self._data_uploader = DataUploader(
+                **uploader_config
+            )
+            self._last_heartbeat_time = 0
+            logging.info(f"[{self.src}] Heartbeat functionality initialized.")
         except Exception as e:
             logging.error(f"[{self.src}] Failed to initialize heartbeat: {e}")
             self._data_uploader = None

@@ -12,7 +12,7 @@ from ultralytics import YOLO
 import logging
 
 # --- Script Information ---
-__version__ = "2.31"
+__version__ = "2.32"
 __author__ = "TransformsAI"
 
 logger = logging.getLogger("kitchen_safety")
@@ -181,9 +181,15 @@ def sequential_multi_stream_loop(global_config, main_model, class_names, person_
         heartbeat_config = {
             'enabled': True,
             'sn': sn,
-            'heartbeat_url': global_config.get('heartbeat_url'),
-            'headers': {"X-Secret-Key": global_config.get("X-Secret-Key", "")},
-            'interval': global_config.get("heartbeat_interval", 30)
+            'uploader_config': {
+                'api_url' : None,
+                'heartbeat_url': global_config.get('heartbeat_url'),
+                'headers': {"X-Secret-Key": global_config.get("X-Secret-Key", "")},
+                'debug' : True,
+                'max_workers' : 2,
+                'source' : "Video Capture",
+                'project_version' : __version__,   
+            }
         }
         
         cap = VideoCaptureAsync(src=video_source_uri, 
