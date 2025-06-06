@@ -12,7 +12,7 @@ from ultralytics import YOLO
 import logging
 
 # --- Script Information ---
-__version__ = "2.3"
+__version__ = "2.31"
 __author__ = "TransformsAI"
 
 logger = logging.getLogger("kitchen_safety")
